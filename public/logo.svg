@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 520" width="600" height="520" fill="none">
+  <defs>
+    <linearGradient id="logoEmerald" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#34D399" />
+      <stop offset="50%" stop-color="#10B981" />
+      <stop offset="100%" stop-color="#06B6D4" />
+    </linearGradient>
+    <linearGradient id="logoPulse" x1="100%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#38BDF8" />
+      <stop offset="100%" stop-color="#059669" />
+    </linearGradient>
+    <radialGradient id="logoNode" cx="35%" cy="35%" r="65%">
+      <stop offset="0%" stop-color="#A7F3D0" />
+      <stop offset="60%" stop-color="#10B981" />
+      <stop offset="100%" stop-color="#047857" />
+    </radialGradient>
+    <filter id="logoGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Central Brand Icon Mark (Squircle) -->
+  <g transform="translate(190, 30)">
+    <rect width="220" height="220" rx="56" fill="#0b1627" />
+    <rect x="2" y="2" width="216" height="216" rx="54" fill="none" stroke="rgba(52, 211, 153, 0.35)" stroke-width="3" />
+
+    <!-- Scaled Monogram (center at 110, 110) -->
+    <g transform="translate(110, 110) scale(1.4) translate(-64, -64)">
+      <!-- Ambient Glow -->
+      <circle cx="64" cy="64" r="40" fill="#047857" opacity="0.3" filter="url(#logoGlow)" />
+
+      <!-- Outer Orbital Network Arc -->
+      <path
+        d="M 94 36 A 44 44 0 1 0 96 90"
+        fill="none"
+        stroke="url(#logoEmerald)"
+        stroke-width="7.5"
+        stroke-linecap="round"
+        stroke-dasharray="92 8"
+      />
+
+      <!-- Inner Pulse Arc -->
+      <path
+        d="M 80 48 A 26 26 0 1 0 84 80"
+        fill="none"
+        stroke="url(#logoPulse)"
+        stroke-width="6"
+        stroke-linecap="round"
+      />
+
+      <!-- Diagonal Cedi Slash (₵) -->
+      <path
+        d="M 44 26 L 84 102"
+        stroke="url(#logoEmerald)"
+        stroke-width="7.5"
+        stroke-linecap="round"
+      />
+
+      <!-- Connectivity Nodes -->
+      <circle cx="94" cy="36" r="5.5" fill="url(#logoNode)" />
+      <circle cx="96" cy="90" r="5" fill="url(#logoNode)" />
+      <circle cx="64" cy="64" r="4.5" fill="#FFFFFF" />
+      <circle cx="84" cy="102" r="5.5" fill="url(#logoNode)" />
+      <circle cx="44" cy="26" r="4" fill="#67E8F9" />
+    </g>
+  </g>
+
+  <!-- Brand Typography -->
+  <g transform="translate(300, 345)">
+    <!-- Wordmark -->
+    <text text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="64" font-weight="900" letter-spacing="-1">
+      <tspan fill="#0f172a">mycedi</tspan><tspan fill="url(#logoEmerald)">net</tspan>
+    </text>
+
+    <!-- Tagline -->
+    <text y="55" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="18" font-weight="800" letter-spacing="6" fill="#059669">
+      DATA TELECOM NETWORK
+    </text>
+
+    <!-- Secondary Tagline -->
+    <text y="105" text-anchor="middle" font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif" font-size="14" font-weight="600" letter-spacing="2" fill="#64748b">
+      GHANA'S DIGITAL TELECOM GATEWAY
+    </text>
+  </g>
+</svg>

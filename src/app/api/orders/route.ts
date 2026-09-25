@@ -1,0 +1,554 @@
+import { NextRequest, NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+import { requireUser } from "@/lib/auth";
+import { sendOrdersSchema } from "@/lib/validation";
+import { createOrder, isOrderProcessingHalted } from "@/lib/orders";
+import {
+  validateMtnOrderRecipient,
+  isMtnVerificationEnabled,
+  normalizeGhanaPhoneNumber,
+  recordUnverifiedMtnNumbersBatch,
+} from "@/lib/mtn-verification";
+import { nextBatchCode } from "@/lib/batches";
+import { recordAudit } from "@/lib/audit";
+import { handleRouteError, apiError } from "@/lib/api-helpers";
+import { normalizeOrderStatus, sanitizeCustomerRefundNote } from "@/lib/types";
+
+export async function POST(request: NextRequest) {
+  try {
+    const user = await requireUser();
+
+    if (await isOrderProcessingHalted()) {
+      return apiError(503, "Order processing is temporarily halted. Please try again later.");
+    }
+
+    const killSwitch = await prisma.systemSetting.findUnique({
+      where: { key: "number_submission_page_enabled" },
+    });
+    if (killSwitch?.value === "false") {
+      return apiError(503, "Number submission is currently disabled by administrator.");
+    }
+
+    const body = await request.json();
+    const input = sendOrdersSchema.parse(body);
+
+    // Deduplicate within the submission batch so only one unique bundle per phone number is processed
+    const seenOrderKeys = new Set<string>();
+    const deduplicatedOrders: typeof input.orders = [];
+    for (const o of input.orders) {
+      const orderKey = `${o.phoneNumber}:${o.packageId ?? `${o.network}:${o.gbAmount}`}`;
+      if (!seenOrderKeys.has(orderKey)) {
+        seenOrderKeys.add(orderKey);
+        deduplicatedOrders.push(o);
+      }
+    }
+
+    if (deduplicatedOrders.length === 0) {
+      return apiError(400, "No valid orders provided.");
+    }
+
+    const maxOrdersSetting = await prisma.systemSetting.findUnique({
+      where: { key: "max_orders_per_submission" },
+    });
+    const maxAllowed = maxOrdersSetting?.value ? parseInt(maxOrdersSetting.value, 10) : 500;
+    if (deduplicatedOrders.length > maxAllowed) {
+      return apiError(400, `Maximum ${maxAllowed} orders allowed per submission.`);
+    }
+
+    // Enforce package availability: admin-disabled packages must not be
+    // orderable, even from a stale page or a crafted request.
+    const activePackages = await prisma.dataPackage.findMany({
+      where: { active: true },
+      select: { id: true, network: true, gbAmount: true },
+    });
+    const activeKeys = new Set(activePackages.map((p) => `${p.network}:${p.gbAmount}`));
+    const activeIds = new Set(activePackages.map((p) => p.id));
+    for (const o of deduplicatedOrders) {
+      if (o.packageId) {
+        if (!activeIds.has(o.packageId)) {
+          return apiError(400, "One or more selected packages are currently unavailable.");
+        }
+      } else if (!activeKeys.has(`${o.network}:${o.gbAmount}`)) {
+        return apiError(
+          400,
+          `${o.network} ${o.gbAmount}GB is currently unavailable. Please refresh the page and try again.`
+        );
+      }
+    }
+
+    if (user.status === "FROZEN") {
+      return apiError(403, "Your account is frozen. You cannot place orders. Please contact support.");
+    }
+
+    // Check if any recipient number currently has an active in-flight order (§15).
+    // If a number was part of a batch and was completed (SUCCESS), failed, or cancelled,
+    // it should not be blocked regardless of other pending recipients in the batch.
+    for (const o of deduplicatedOrders) {
+      const latestOrder = await prisma.order.findFirst({
+        where: { phoneNumber: o.phoneNumber },
+        orderBy: { createdAt: "desc" },
+        select: { phoneNumber: true, status: true },
+      });
+      if (latestOrder && (latestOrder.status === "PENDING" || latestOrder.status === "PROCESSING")) {
+        return apiError(
+          400,
+          `Cannot place order for ${latestOrder.phoneNumber}: this number currently has an active order in ${latestOrder.status.toLowerCase()} status.`
+        );
+      }
+    }
+
+    // MTN single order per number a day toggle check
+    const singleOrderPerDay = await prisma.systemSetting.findUnique({
+      where: { key: "mtn_single_order_per_day_enabled" },
+    });
+    if (singleOrderPerDay?.value === "true") {
+      const now = new Date();
+      const startOfDay = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+      const seenMtnSubmissionPhones = new Set<string>();
+      for (const o of deduplicatedOrders) {
+        if (o.network === "MTN") {
+          if (seenMtnSubmissionPhones.has(o.phoneNumber)) {
+            return apiError(
+              400,
+              `MTN number ${o.phoneNumber} has multiple orders in this batch. Only 1 order per MTN number per day is permitted.`
+            );
+          }
+          seenMtnSubmissionPhones.add(o.phoneNumber);
+          const existingToday = await prisma.order.findFirst({
+            where: {
+              phoneNumber: o.phoneNumber,
+              network: "MTN",
+              createdAt: { gte: startOfDay },
+              status: { notIn: ["CANCELLED", "REFUNDED"] },
+            },
+          });
+          if (existingToday) {
+            return apiError(
+              400,
+              `MTN number ${o.phoneNumber} already has an order placed today. Only 1 order per MTN number per day is permitted.`
+            );
+          }
+        }
+      }
+    }
+
+    // Resolve prices & total
+    const profileId = user.pricingProfileId ?? null;
+    const profile = profileId
+      ? await prisma.pricingProfile.findUnique({ where: { id: profileId } })
+      : null;
+    const isCustomProfile = profile && !profile.isDefault;
+
+    const tiers = (isCustomProfile && profileId)
+      ? await prisma.priceTier.findMany({ where: { profileId } })
+      : [];
+    const priceMap = new Map(tiers.map((t) => [t.gbAmount, t.priceGHS]));
+
+    // Check if custom profile has distinct per-network rates
+    let profileNetworkRates: Record<string, Array<{ gbAmount: number; priceGHS: number }>> | null = null;
+    if (isCustomProfile && profileId) {
+      const setting = await prisma.systemSetting.findUnique({
+        where: { key: `pricing_profile_network_rates:${profileId}` },
+      });
+      if (setting?.value) {
+        try {
+          profileNetworkRates = JSON.parse(setting.value);
+        } catch {
+          // ignore
+        }
+      }
+    }
+
+    const packages = await prisma.dataPackage.findMany({ where: { active: true } });
+    const pkgMap = new Map(packages.map((p) => [`${p.network.toUpperCase()}:${p.gbAmount}`, p]));
+
+    let total = 0;
+    const priced = deduplicatedOrders.map((o) => {
+      const netUpper = o.network.toUpperCase();
+      const pkg = pkgMap.get(`${netUpper}:${o.gbAmount}`);
+
+      let price: number | null = null;
+      if (profileNetworkRates && Array.isArray(profileNetworkRates[netUpper])) {
+        const match = profileNetworkRates[netUpper].find((t) => t.gbAmount === o.gbAmount);
+        if (match && typeof match.priceGHS === "number" && match.priceGHS > 0) {
+          price = match.priceGHS;
+        }
+      }
+      if (price == null && isCustomProfile && priceMap.has(o.gbAmount)) {
+        price = priceMap.get(o.gbAmount)!;
+      }
+      if (price == null) {
+        price = pkg?.retailPriceGHS ?? priceMap.get(o.gbAmount) ?? null;
+      }
+
+      if (price == null) {
+        throw new Error(`No price configured for ${o.network} ${o.gbAmount}GB`);
+      }
+      total += price;
+      return { ...o, price, packageId: pkg?.id ?? null };
+    });
+
+    // Validate MTN numbers before balance deduction in batch (§2, §16)
+    const mtnOrders = deduplicatedOrders.filter((o) => o.network.toUpperCase() === "MTN");
+    if (mtnOrders.length > 0) {
+      const verificationEnabled = await isMtnVerificationEnabled();
+      const mtnCanonicalList = Array.from(
+        new Set(mtnOrders.map((o) => normalizeGhanaPhoneNumber(o.phoneNumber)))
+      );
+      const acceptedRows = await prisma.acceptedMtnNumber.findMany({
+        where: { normalizedNumber: { in: mtnCanonicalList } },
+        select: { normalizedNumber: true },
+      });
+      const acceptedSet = new Set(acceptedRows.map((r) => r.normalizedNumber));
+
+      if (verificationEnabled) {
+        let unverified = mtnOrders.filter(
+          (o) => !acceptedSet.has(normalizeGhanaPhoneNumber(o.phoneNumber))
+        );
+
+        // Fallback: If Clickyfied verification is enabled, check unverified numbers against Clickyfied
+        if (unverified.length > 0) {
+          const clickyfiedSetting = await prisma.systemSetting.findUnique({
+            where: { key: "clickyfied_mtn_verification_enabled" },
+          });
+          if (clickyfiedSetting?.value === "true") {
+            try {
+              const { getProviderRoutingConfig } = await import("@/lib/provider-apis/router");
+              const { ClickyfiedClient } = await import("@/lib/provider-apis/clickyfied");
+              const { addAcceptedMtnNumber } = await import("@/lib/mtn-verification");
+              const config = await getProviderRoutingConfig();
+              const client = new ClickyfiedClient(config.clickyfied);
+              const unverifiedPhones = Array.from(
+                new Set(unverified.map((o) => normalizeGhanaPhoneNumber(o.phoneNumber)))
+              );
+              const res = await client.verifyNumbers(unverifiedPhones);
+              const validNorms = new Set(res.validNumbers.map((n) => normalizeGhanaPhoneNumber(n)));
+              for (const phone of unverifiedPhones) {
+                if (validNorms.has(phone)) {
+                  await addAcceptedMtnNumber(phone, "CLICKYFIED_API", "Automated Verification API").catch(() => {});
+                  acceptedSet.add(phone);
+                }
+              }
+              // Recompute remaining unverified
+              unverified = mtnOrders.filter(
+                (o) => !acceptedSet.has(normalizeGhanaPhoneNumber(o.phoneNumber))
+              );
+            } catch (err) {
+              console.error("Clickyfied verification check in /api/orders error:", err);
+            }
+          }
+        }
+
+        if (unverified.length > 0) {
+          const sample = unverified.slice(0, 5).map((o) => o.phoneNumber).join(", ");
+          const more = unverified.length > 5 ? ` and ${unverified.length - 5} more` : "";
+          return apiError(
+            400,
+            `Cannot place order: ${unverified.length} MTN number(s) have not been verified yet (${sample}${more}). Please submit for verification or remove them.`
+          );
+        }
+      } else {
+        // Verification toggle is OFF: allow orders, but log unverified numbers in bulk
+        const unverifiedItems = mtnOrders
+          .filter((o) => !acceptedSet.has(normalizeGhanaPhoneNumber(o.phoneNumber)))
+          .map((o) => ({ number: o.phoneNumber, userId: user.id }));
+        if (unverifiedItems.length > 0) {
+          await recordUnverifiedMtnNumbersBatch(unverifiedItems);
+        }
+      }
+    }
+
+    if (user.balance < total) {
+      return apiError(402, `Insufficient balance. You need GHS ${total.toFixed(2)} but have GHS ${user.balance.toFixed(2)}.`);
+    }
+
+    // Atomic balance deduction
+    const result = await prisma.user.updateMany({
+      where: { id: user.id, balance: { gte: total } },
+      data: { balance: { decrement: total } },
+    });
+    if (result.count === 0) {
+      return apiError(402, "Insufficient balance. Please top up and try again.");
+    }
+
+    // Group recipients by network — one OrderBatch per network (§2: never mixed)
+    const groups = new Map<string, Array<(typeof priced)[number]>>();
+    for (const o of priced) {
+      const list = groups.get(o.network) ?? [];
+      list.push(o);
+      groups.set(o.network, list);
+    }
+
+    const created = [];
+    const createdBatches = [];
+    try {
+      for (const [network, lines] of groups) {
+        const batch = await prisma.orderBatch.create({
+          data: {
+            batchCode: await nextBatchCode(),
+            userId: user.id,
+            network,
+            totalRecipients: lines.length,
+            totalGb: lines.reduce((s, l) => s + l.gbAmount, 0),
+            totalAmount: lines.reduce((s, l) => s + l.price, 0),
+          },
+        });
+        createdBatches.push(batch);
+
+        // Process chunked creations to avoid timeouts while preserving order persistence
+        const CHUNK_SIZE = 10;
+        for (let i = 0; i < lines.length; i += CHUNK_SIZE) {
+          const chunk = lines.slice(i, i + CHUNK_SIZE);
+          const chunkOrders = await Promise.all(
+            chunk.map((o) =>
+              createOrder({
+                userId: user.id,
+                phoneNumber: o.phoneNumber,
+                network: o.network,
+                gbAmount: o.gbAmount,
+                packageId: o.packageId ?? null,
+                amount: o.price,
+                source: "WEB",
+                batchId: batch.id,
+                skipMtnValidation: true,
+                skipAutoDispatch: true,
+              })
+            )
+          );
+          created.push(...chunkOrders);
+        }
+      }
+    } catch (err) {
+      // Roll back partially created batches/orders, then refund the balance
+      for (const batch of createdBatches) {
+        await prisma.order.deleteMany({ where: { batchId: batch.id } });
+        await prisma.orderBatch.delete({ where: { id: batch.id } }).catch(() => {});
+      }
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { balance: { increment: total } },
+      });
+      throw err;
+    }
+
+    await recordAudit({
+      userId: user.id,
+      actorLabel: user.email,
+      action: "order.create",
+      target: `batch:${createdBatches.map((b) => b.batchCode).join(",")}`,
+      newValue: JSON.stringify({
+        count: created.length,
+        total,
+        batches: createdBatches.map((b) => ({ code: b.batchCode, network: b.network, recipients: b.totalRecipients })),
+      }),
+    });
+
+    // If automated provider routing is enabled (or Clickify sandbox is active), dispatch to assigned APIs
+    try {
+      const { getProviderRoutingConfig, dispatchOrdersBatch, shouldAutoDispatch } = await import("@/lib/provider-apis/router");
+      const config = await getProviderRoutingConfig();
+      if (shouldAutoDispatch(config)) {
+        // Trigger batch dispatch
+        dispatchOrdersBatch(created.map((o) => o.id)).catch((err) => {
+          console.error("Auto dispatch error:", err);
+        });
+      }
+    } catch (err) {
+      console.error("Auto-dispatch check error:", err);
+    }
+
+    return NextResponse.json({
+      orders: created,
+      batches: createdBatches,
+      total,
+      count: created.length,
+    });
+  } catch (err) {
+    return handleRouteError(err);
+  }
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const user = await requireUser();
+    const { searchParams } = new URL(request.url);
+    const page = Math.max(1, Number(searchParams.get("page") ?? 1));
+    const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize") ?? 20)));
+    const status = searchParams.get("status");
+    const network = searchParams.get("network");
+    const q = searchParams.get("q");
+    const source = searchParams.get("source");
+    const from = searchParams.get("from");
+    const to = searchParams.get("to");
+
+    const where: Record<string, unknown> = { userId: user.id };
+    if (status) where.status = normalizeOrderStatus(status);
+    if (network) where.network = network;
+    if (source === "API") {
+      where.source = "API";
+    } else if (source === "WEB" || source === "SINGLE") {
+      where.source = { not: "API" };
+    }
+    if (q) {
+      const trimmed = q.trim();
+      const idMatch = trimmed.match(/^(?:ORD-|API-)?0*(\d+)$/i);
+      const orConditions: any[] = [
+        { phoneNumber: { contains: trimmed } },
+        { externalReference: { contains: trimmed } },
+        { batch: { is: { batchCode: { contains: trimmed } } } },
+      ];
+      if (idMatch && Number(idMatch[1]) < 2147483647) {
+        orConditions.push({ id: Number(idMatch[1]) });
+      }
+      where.OR = orConditions;
+    }
+    if (from || to) {
+      where.createdAt = {};
+      if (from) (where.createdAt as Record<string, Date>).gte = new Date(from);
+      if (to) (where.createdAt as Record<string, Date>).lte = new Date(to);
+    }
+
+    const [data, total] = await Promise.all([
+      prisma.order.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip: (page - 1) * pageSize,
+        take: pageSize,
+        include: {
+          dataPackage: {
+            select: { name: true },
+          },
+          apiCredential: {
+            select: { name: true, keyPrefix: true },
+          },
+          batch: {
+            select: {
+              id: true,
+              batchCode: true,
+              status: true,
+            },
+          },
+          deliveryReports: {
+            orderBy: { createdAt: "desc" },
+            select: {
+              id: true,
+              seq: true,
+              status: true,
+              proofImageMime: true,
+            },
+          },
+        },
+      }),
+      prisma.order.count({ where }),
+    ]);
+
+    // On-demand sync for in-flight Clickyfied orders on this page (throttled to 120s and poller enabled)
+    const pollerSetting = await prisma.systemSetting.findUnique({
+      where: { key: "provider_sync_poller_enabled" },
+    });
+    const pollerEnabled = pollerSetting?.value !== "false";
+
+    if (pollerEnabled) {
+      const inFlightClickyfied = data.filter(
+        (o) =>
+          (o.status === "PENDING" || o.status === "PROCESSING") &&
+          o.providerReference?.startsWith("CLICKYFIED:") &&
+          Date.now() - new Date(o.updatedAt).getTime() > 120000
+      );
+
+      if (inFlightClickyfied.length > 0) {
+        try {
+          const { syncClickyfiedOrder } = await import("@/lib/provider-apis/router");
+          await Promise.allSettled(
+            inFlightClickyfied.slice(0, 5).map(async (o) => {
+              const res = await syncClickyfiedOrder(o, "User Dashboard Sync");
+              if (res.changed && res.newStatus) {
+                o.status = res.newStatus;
+              }
+            })
+          );
+        } catch (syncErr) {
+          console.error("On-demand orders sync error:", syncErr);
+        }
+      }
+
+      // On-demand sync for open delivery reports on this page (throttled to 120s)
+      const ordersWithOpenReports = data.filter(
+        (o: any) =>
+          o.deliveryReports?.some((r: any) => ["OPEN", "UNDER_REVIEW", "INVESTIGATING"].includes(r.status)) &&
+          (o.providerReference?.startsWith("CLICKYFIED:") || o.externalReference) &&
+          Date.now() - new Date(o.updatedAt).getTime() > 120000
+      );
+
+      if (ordersWithOpenReports.length > 0) {
+        try {
+          const { syncClickyfiedDeliveryReport } = await import("@/lib/provider-apis/router");
+          await Promise.allSettled(
+            ordersWithOpenReports.slice(0, 5).map(async (o: any) => {
+              const rep = o.deliveryReports?.find((r: any) =>
+                ["OPEN", "UNDER_REVIEW", "INVESTIGATING"].includes(r.status)
+              );
+            if (rep) {
+              const res = await syncClickyfiedDeliveryReport(rep.id, "Orders Page View Sync");
+              if (res.changed) {
+                const refreshed = await prisma.deliveryReport.findUnique({
+                  where: { id: rep.id },
+                  select: { id: true, seq: true, status: true, proofImageMime: true },
+                });
+                if (refreshed) {
+                  rep.status = refreshed.status;
+                  rep.proofImageMime = refreshed.proofImageMime;
+                }
+                const refreshedOrder = await prisma.order.findUnique({
+                  where: { id: o.id },
+                  select: { status: true, failureReason: true },
+                });
+                if (refreshedOrder) {
+                  o.status = refreshedOrder.status;
+                  o.failureReason = refreshedOrder.failureReason;
+                }
+              }
+            }
+          })
+        );
+      } catch (repSyncErr) {
+        console.error("On-demand orders delivery report sync error:", repSyncErr);
+      }
+    }
+  }
+
+    // Queue positions across the user's pending/processing orders
+    const queueRows = await prisma.order.findMany({
+      where: { userId: user.id, status: { in: ["PENDING", "PROCESSING"] } },
+      orderBy: { createdAt: "asc" },
+      select: { id: true },
+    });
+    const queueTotal = queueRows.length;
+    const positionOf = new Map<number, number>();
+    queueRows.forEach((row, index) => positionOf.set(row.id, index + 1));
+
+    const isStaff = user.role === "ADMIN" || user.role === "MANAGER";
+    const dataWithQueue = data.map((order) => {
+      const isDelivered = order.status === "SUCCESS" || order.status === "COMPLETED";
+      const deliveredAt = isDelivered ? (order.completedAt ?? order.updatedAt) : null;
+      return {
+        ...order,
+        providerReference: isStaff ? order.providerReference : null,
+        completedAt: deliveredAt ? new Date(deliveredAt).toISOString() : null,
+        failureReason: sanitizeCustomerRefundNote(order.failureReason, order.amount),
+        queuePosition: positionOf.get(order.id) ?? null,
+        queueTotal,
+      };
+    });
+
+    return NextResponse.json({
+      data: dataWithQueue,
+      total,
+      page,
+      pageSize,
+      pages: Math.ceil(total / pageSize),
+    });
+  } catch (err) {
+    return handleRouteError(err);
+  }
+}

@@ -1,0 +1,43 @@
+API Usage
+Use your API key in the x-api-key header to access the external API.
+
+POST
+/api/v1/share/send
+Send data to a recipient
+share:send
+GET
+/api/v1/packages
+List available data packages
+get available packages
+GET
+/api/v1/share/status
+Check order status by transactionId or reference
+transactions:read
+GET
+/api/v1/transactions
+List all transactions
+transactions:read
+Send data bundle
+
+curl -X POST https://bigwinportal.com/api/v1/share/send \
+  -H "x-api-key: tbk_your_key_here" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "phone": "0501234567",
+    "dataGB": 5,
+    "reference": "order_99"
+  }'
+reference is optional — pass your own order/tracking ID to correlate with your system.
+
+Check order status
+
+# By your reference
+curl "https://bigwinportal.com/api/v1/share/status?reference=order_99" \
+  -H "x-api-key: tbk_your_key_here"
+
+# By transactionId
+curl "https://bigwinportal.com/api/v1/share/status?transactionId=TXN-1234567890" \
+  -H "x-api-key: tbk_your_key_here"
+Returns status: "success" | "failed" | "pending" along with recipient details.
+
+api keys : tbk_23bab40f4c1a4c54600b14ededb7a7d37ed0cc44257732b4016e2c9abdaca528

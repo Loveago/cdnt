@@ -1,0 +1,125 @@
+================================================================================
+     MYCEDINET — VERCEL DUAL-DOMAIN DEPLOYMENT & TESTING GUIDE
+     (How to Use Two Separate Domains or Subdomains on One Vercel Project)
+================================================================================
+Repository: https://github.com/Loveago/mycedinet.git
+Framework:  Next.js 15 (App Router) + Prisma + Tailwind CSS
+Platform:   Vercel
+
+You can use two separate domains on the SAME Vercel project:
+• Domain 1 (Management Portal): For Admin, Users, Billing, and Dashboard.
+• Domain 2 (Storefront Portal): Dedicated to Customers, Stores, and Order Tracking.
+
+This works whether you use:
+• Two free Vercel subdomains (e.g. `mycedinet-admin.vercel.app` & `mycedinet-store.vercel.app`)
+  OR
+• Two custom domains (e.g. `mycedinet.com` & `mycedinetstore.com`)
+================================================================================
+
+--------------------------------------------------------------------------------
+TABLE OF CONTENTS
+--------------------------------------------------------------------------------
+1. Step 1: Add Both Separate Domains to Your Vercel Project
+   • Option A: Two Free .vercel.app Subdomains (Zero DNS required)
+   • Option B: Two Custom Domains (e.g. mycedinet.com & mycedinetstore.com)
+2. Step 2: Set the Dual-Domain Environment Variables in Vercel
+3. Step 3: Update Database Schema (Prisma DB Push)
+4. Step 4: Redeploy the Project on Vercel
+5. Step 5: Verify How the Two Domains Interact
+
+
+================================================================================
+STEP 1: ADD BOTH SEPARATE DOMAINS TO YOUR VERCEL PROJECT
+================================================================================
+Go to your **Vercel Project Dashboard** -> **Settings** -> **Domains**.
+
+--------------------------------------------------------------------------------
+OPTION A: Using Two Free .vercel.app Subdomains (Instant, No DNS setup needed)
+--------------------------------------------------------------------------------
+Vercel allows you to add multiple `.vercel.app` aliases to the exact same project!
+
+1. Your primary domain is already there (e.g. `my-portal.vercel.app`).
+2. In the "Add Domain" box, type a second `.vercel.app` subdomain for your stores:
+   Example: `my-storefront.vercel.app`
+3. Click "Add".
+4. Vercel automatically assigns it instantly with SSL!
+
+You now have two distinct domains pointing to your app:
+• `my-portal.vercel.app`
+• `my-storefront.vercel.app`
+
+--------------------------------------------------------------------------------
+OPTION B: Using Two Custom Domains (e.g. mycedinet.com & mycedinetstore.com)
+--------------------------------------------------------------------------------
+1. In Vercel Project -> Settings -> Domains:
+   - Add `mycedinet.com` and `www.mycedinet.com`
+   - Add `mycedinetstore.com` and `www.mycedinetstore.com`
+2. In your DNS provider (Namecheap, Cloudflare, GoDaddy, etc.), set:
+   For mycedinet.com:
+     A record:     @   ->  76.76.21.21
+     CNAME record: www ->  cname.vercel-dns.com
+   For mycedinetstore.com:
+     A record:     @   ->  76.76.21.21
+     CNAME record: www ->  cname.vercel-dns.com
+
+
+================================================================================
+STEP 2: SET THE DUAL-DOMAIN ENVIRONMENT VARIABLES IN VERCEL
+================================================================================
+Go to: **Settings** -> **Environment Variables** in your Vercel Project.
+
+Add / Update these 4 domain variables:
+
+(Replace with your two chosen domains, WITHOUT `https://`):
+
+| Variable Key                   | Example (Option A: Vercel)    | Example (Option B: Custom) |
+| :----------------------------- | :---------------------------- | :------------------------- |
+| MAIN_DOMAIN                    | my-portal.vercel.app          | mycedinet.com              |
+| NEXT_PUBLIC_MAIN_DOMAIN        | my-portal.vercel.app          | mycedinet.com              |
+| STOREFRONT_DOMAIN              | my-storefront.vercel.app      | mycedinetstore.com         |
+| NEXT_PUBLIC_STOREFRONT_DOMAIN  | my-storefront.vercel.app      | mycedinetstore.com         |
+
+Also ensure your other required variables are set:
+• DATABASE_URL: Your cloud Neon/Postgres pooling connection string
+• AUTH_SECRET: 32+ character random secret
+• PAYSTACK_SECRET_KEY: sk_test_... (or sk_live_...)
+
+
+================================================================================
+STEP 3: UPDATE DATABASE SCHEMA (PRISMA DB PUSH)
+================================================================================
+Push the latest storefront database schema to your cloud database:
+
+From your local machine terminal:
+DATABASE_URL="your_neon_postgres_url" npx prisma db push
+
+
+================================================================================
+STEP 4: REDEPLOY THE PROJECT ON VERCEL
+================================================================================
+1. Push your latest code to GitHub:
+   git add .
+   git commit -m "Configure multi-domain routing"
+   git push origin main
+
+2. Or in Vercel Dashboard:
+   Go to the "Deployments" tab -> click the `...` menu on the latest deployment -> select "Redeploy".
+   (Uncheck "Use existing Build Cache" so it loads the updated domain variables).
+
+
+================================================================================
+STEP 5: VERIFY HOW THE TWO DOMAINS INTERACT
+================================================================================
+
+1. MANAGEMENT DOMAIN (e.g. `https://my-portal.vercel.app` or `https://mycedinet.com`):
+   • Open `https://mycedinet.com/login` -> Logs in to management dashboard.
+   • Open `https://mycedinet.com/@storename` -> Automatically redirects to
+     `https://mycedinetstore.com/storename`!
+
+2. STOREFRONT DOMAIN (e.g. `https://my-storefront.vercel.app` or `https://mycedinetstore.com`):
+   • Open root `https://mycedinetstore.com/` -> Renders the Inquisitive Visitor homepage.
+   • Open `https://mycedinetstore.com/kofi-data` -> Renders the customer store.
+   • Open `https://mycedinetstore.com/kofi-data/mtn` -> Clean network page.
+   • Open `https://mycedinetstore.com/admin` -> Instantly redirects to
+     `https://mycedinet.com/login` for security!
+================================================================================

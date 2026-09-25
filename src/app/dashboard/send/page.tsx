@@ -1,0 +1,1221 @@
+"use client";
+
+import * as React from "react";
+import Link from "next/link";
+import { useToast } from "@/components/toast";
+import { QueueList, SendSummary, type Line } from "@/components/send/queue-list";
+import { NETWORKS, formatGHS } from "@/lib/types";
+import { NETWORK_LABELS, parseOrderLine, normalizeTextNumbers, splitOrderLines, isHeaderLine } from "@/lib/order-parse";
+import { isMtnPrefix, detectNetworkNameByPrefix } from "@/lib/phone-utils";
+import { cn } from "@/lib/utils";
+import { Dialog } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
+import { LiveDeliverySpeedCard } from "@/components/send/live-delivery-speed-card";
+import {
+  AlertTriangle,
+  Check,
+  ClipboardPaste,
+  Copy,
+  Download,
+  FileUp,
+  Loader2,
+  Send,
+  ShieldAlert,
+  Trash2,
+  UploadCloud,
+  Wallet,
+} from "lucide-react";
+
+interface Pkg {
+  id: string;
+  network: string;
+  name: string;
+  gbAmount: number;
+  price: number | null;
+}
+
+interface PortedNumberItem {
+  phoneNumber: string;
+  detectedNetwork: string;
+  gbAmount: number;
+}
+
+const DRAFT_STORAGE_KEY = "mycedinet_send_orders_draft_v1";
+
+export default function SendOrderPage() {
+  const { toast } = useToast();
+  const [packages, setPackages] = React.useState<Pkg[]>([]);
+  const [submissionEnabled, setSubmissionEnabled] = React.useState(true);
+  const [loading, setLoading] = React.useState(true);
+  const [network, setNetwork] = React.useState<string>("MTN");
+  const [tab, setTab] = React.useState<"upload" | "paste">("upload");
+  const [bulkText, setBulkText] = React.useState("");
+  const [fileName, setFileName] = React.useState<string | null>(null);
+  const [uploading, setUploading] = React.useState(false);
+  const [dragging, setDragging] = React.useState(false);
+  const [lines, setLines] = React.useState<Line[]>([]);
+  const [submitting, setSubmitting] = React.useState(false);
+  const [result, setResult] = React.useState<string | null>(null);
+  const [userBalance, setUserBalance] = React.useState<number | null>(null);
+  const [draftLoaded, setDraftLoaded] = React.useState(false);
+  const [copiedBulkText, setCopiedBulkText] = React.useState(false);
+  const [copiedFromModal, setCopiedFromModal] = React.useState(false);
+
+  // Insufficient balance dialog state
+  const [insufficientBalanceModal, setInsufficientBalanceModal] = React.useState<{
+    needed: number;
+    balance: number;
+    deficit: number;
+    orders: Line[];
+    message?: string;
+  } | null>(null);
+
+  const fileRef = React.useRef<HTMLInputElement>(null);
+
+  // State for confirming unverified MTN numbers
+  const [pendingUnverified, setPendingUnverified] = React.useState<{
+    toAdd: Line[];
+    unverifiedNumbers: string[];
+    verifiedItems: Line[];
+    verificationEnabled: boolean;
+    rawText: string | null;
+    mode: "add" | "submit";
+  } | null>(null);
+
+  // State for confirming ported numbers
+  const [pendingPorted, setPendingPorted] = React.useState<{
+    toAdd: Line[];
+    portedItems: PortedNumberItem[];
+    nonPortedItems: Line[];
+    rawText: string | null;
+  } | null>(null);
+
+  const fetchBalance = React.useCallback(async () => {
+    try {
+      const res = await fetch("/api/auth/me");
+      if (res.ok) {
+        const d = await res.json();
+        if (d.user && typeof d.user.balance === "number") {
+          setUserBalance(d.user.balance);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  React.useEffect(() => {
+    const onBalanceUpdate = () => {
+      void fetchBalance();
+    };
+    window.addEventListener("balance-update", onBalanceUpdate);
+    return () => {
+      window.removeEventListener("balance-update", onBalanceUpdate);
+    };
+  }, [fetchBalance]);
+
+  React.useEffect(() => {
+    fetch("/api/packages")
+      .then((r) => r.json())
+      .then((d) => {
+        setPackages(d.packages ?? []);
+        if (d.submissionEnabled !== undefined) {
+          setSubmissionEnabled(d.submissionEnabled);
+        }
+        if (typeof d.userBalance === "number") {
+          setUserBalance(d.userBalance);
+        }
+      })
+      .catch(() => toast("Failed to load packages", "error"))
+      .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Restore draft from localStorage on mount
+  React.useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const saved = localStorage.getItem(DRAFT_STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed.bulkText) {
+          setBulkText(parsed.bulkText);
+          setTab("paste");
+        }
+        if (Array.isArray(parsed.lines) && parsed.lines.length > 0) {
+          setLines(parsed.lines);
+        }
+        if (parsed.network && NETWORKS.includes(parsed.network)) {
+          setNetwork(parsed.network);
+        }
+      }
+    } catch {
+      // ignore
+    }
+    setDraftLoaded(true);
+  }, []);
+
+  // Save draft to localStorage when bulkText or lines changes
+  React.useEffect(() => {
+    if (!draftLoaded || typeof window === "undefined") return;
+    try {
+      if (bulkText.trim() || lines.length > 0) {
+        localStorage.setItem(
+          DRAFT_STORAGE_KEY,
+          JSON.stringify({ bulkText, lines, network })
+        );
+      } else {
+        localStorage.removeItem(DRAFT_STORAGE_KEY);
+      }
+    } catch {
+      // ignore
+    }
+  }, [bulkText, lines, network, draftLoaded]);
+
+  // If the selected network has no packages, fall back to the first one that does.
+  React.useEffect(() => {
+    if (loading || !packages.length) return;
+    if (packages.some((p) => p.network === network)) return;
+    const first = NETWORKS.find((n) => packages.some((p) => p.network === n));
+    if (first) setNetwork(first);
+  }, [packages, loading, network]);
+
+  const checkPortedAndAdd = (items: Line[], skipped = 0) => {
+    // Check for non-standard MTN prefixes (potentially ported numbers)
+    const portedItems: PortedNumberItem[] = [];
+    for (const item of items) {
+      if (item.network === "MTN" && !isMtnPrefix(item.phoneNumber)) {
+        portedItems.push({
+          phoneNumber: item.phoneNumber,
+          detectedNetwork: detectNetworkNameByPrefix(item.phoneNumber),
+          gbAmount: item.gbAmount,
+        });
+      }
+    }
+
+    if (portedItems.length > 0) {
+      setPendingPorted({
+        toAdd: items,
+        portedItems,
+        nonPortedItems: items.filter(
+          (item) => !(item.network === "MTN" && !isMtnPrefix(item.phoneNumber))
+        ),
+        rawText: null,
+      });
+      return;
+    }
+
+    setLines((l) => [...l, ...items]);
+    toast(
+      `${items.length} order(s) added${skipped > 0 ? ` — ${skipped} invalid line(s) skipped` : ""}`,
+      "success"
+    );
+  };
+
+  const addParsed = async (parsed: Line[], skipped: number, source: string, rawText?: string) => {
+    if (!parsed.length) {
+      toast(
+        skipped > 0
+          ? `${skipped} invalid line(s) skipped`
+          : `No valid orders found in ${source}`,
+        "error"
+      );
+      return;
+    }
+
+    // 1. Deduplicate within the newly parsed items (keep first occurrence)
+    const seenNew = new Set<string>();
+    const uniqueFromInput: Line[] = [];
+    let duplicatesInInput = 0;
+    for (const p of parsed) {
+      if (seenNew.has(p.phoneNumber)) {
+        duplicatesInInput++;
+      } else {
+        seenNew.add(p.phoneNumber);
+        uniqueFromInput.push(p);
+      }
+    }
+
+    // 2. Deduplicate against existing queue
+    const existingPhones = new Set(lines.map((l) => l.phoneNumber));
+    const toAdd: Line[] = [];
+    let duplicatesAgainstQueue = 0;
+    for (const p of uniqueFromInput) {
+      if (existingPhones.has(p.phoneNumber)) {
+        duplicatesAgainstQueue++;
+      } else {
+        toAdd.push(p);
+      }
+    }
+
+    const totalDuplicates = duplicatesInInput + duplicatesAgainstQueue;
+    if (totalDuplicates > 0) {
+      toast(
+        `${totalDuplicates} duplicate number(s) removed — only 1 order per number is allowed`,
+        "info"
+      );
+    }
+
+    if (!toAdd.length) {
+      if (totalDuplicates > 0) {
+        toast("All entered numbers are already in the queue", "error");
+      }
+      return;
+    }
+
+    // 3. Check for unverified MTN numbers
+    const mtnItems = toAdd.filter((item) => item.network === "MTN");
+    if (mtnItems.length > 0) {
+      try {
+        const checkRes = await fetch("/api/mtn-verification/check", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phoneNumbers: mtnItems.map((item) => item.phoneNumber) }),
+        });
+        if (checkRes.ok) {
+          const checkData = await checkRes.json();
+          const unverifiedList: string[] = checkData.unverifiedNumbers ?? [];
+          if (unverifiedList.length > 0) {
+            const unverifiedSet = new Set(unverifiedList);
+            setPendingUnverified({
+              toAdd,
+              unverifiedNumbers: unverifiedList,
+              verifiedItems: toAdd.filter((item) => !unverifiedSet.has(item.phoneNumber)),
+              verificationEnabled: checkData.verificationEnabled ?? true,
+              rawText: source === "pasted text" ? (rawText ?? null) : null,
+              mode: "add",
+            });
+            return;
+          }
+        }
+      } catch {
+        // continue
+      }
+    }
+
+    checkPortedAndAdd(toAdd, skipped);
+  };
+
+  const confirmUnverifiedAddition = (includeUnverified: boolean) => {
+    if (!pendingUnverified) return;
+    const mode = pendingUnverified.mode;
+    const items = includeUnverified ? pendingUnverified.toAdd : pendingUnverified.verifiedItems;
+    const unverifiedCount = pendingUnverified.unverifiedNumbers.length;
+    setPendingUnverified(null);
+
+    if (mode === "submit") {
+      if (items.length > 0) {
+        setLines(items);
+        void executeOrderSubmission(items);
+      } else {
+        toast("No orders to send — unverified number(s) were removed", "info");
+      }
+    } else {
+      if (items.length > 0) {
+        if (!includeUnverified && unverifiedCount > 0) {
+          toast(`${unverifiedCount} unverified number(s) removed`, "info");
+        }
+        checkPortedAndAdd(items, 0);
+      } else {
+        toast("No orders added — unverified number(s) were excluded", "info");
+      }
+    }
+  };
+
+  const [copiedUnverified, setCopiedUnverified] = React.useState(false);
+
+  const copyUnverifiedNumbers = async () => {
+    if (!pendingUnverified) return;
+
+    const unverifiedSet = new Set(pendingUnverified.unverifiedNumbers);
+    const unverifiedItems = pendingUnverified.toAdd.filter((item) =>
+      unverifiedSet.has(item.phoneNumber)
+    );
+
+    const linesToFormat =
+      unverifiedItems.length > 0
+        ? unverifiedItems
+        : pendingUnverified.unverifiedNumbers.map((num) => {
+            const l = pendingUnverified.toAdd.find((item) => item.phoneNumber === num);
+            return { phoneNumber: num, gbAmount: l?.gbAmount ?? "" };
+          });
+
+    const textToCopy = linesToFormat
+      .map((item) => `${item.phoneNumber} ${item.gbAmount}`.trim())
+      .join("\n");
+
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(textToCopy);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = textToCopy;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.focus();
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+      setCopiedUnverified(true);
+      toast("Copied unverified numbers to clipboard", "success");
+      setTimeout(() => setCopiedUnverified(false), 2000);
+    } catch {
+      toast("Failed to copy to clipboard", "error");
+    }
+  };
+
+  const cancelUnverifiedAddition = () => {
+    if (pendingUnverified?.rawText) {
+      setBulkText(pendingUnverified.rawText);
+      toast("Order addition cancelled — input restored for review", "info");
+    }
+    setPendingUnverified(null);
+  };
+
+  const confirmPortedAddition = (includePorted: boolean) => {
+    if (!pendingPorted) return;
+    const itemsToAdd = includePorted ? pendingPorted.toAdd : pendingPorted.nonPortedItems;
+    if (itemsToAdd.length > 0) {
+      setLines((l) => [...l, ...itemsToAdd]);
+      toast(
+        includePorted
+          ? `${itemsToAdd.length} order(s) added (including ported numbers)`
+          : `${itemsToAdd.length} order(s) added (${pendingPorted.portedItems.length} ported number(s) excluded)`,
+        "success"
+      );
+    } else {
+      toast("No orders added — ported number(s) were excluded", "info");
+    }
+    setPendingPorted(null);
+  };
+
+  const cancelPortedAddition = () => {
+    if (pendingPorted?.rawText) {
+      setBulkText(pendingPorted.rawText);
+      toast("Ported order addition cancelled — input restored for review", "info");
+    }
+    setPendingPorted(null);
+  };
+
+  const handleText = (text: string, source: string) => {
+    const rawLines = splitOrderLines(text);
+    const parsed: Line[] = [];
+    let skipped = 0;
+    rawLines.forEach((line) => {
+      if (isHeaderLine(line)) return;
+      const parsedLine = parseOrderLine(line, packages, network);
+      if (parsedLine) parsed.push(parsedLine);
+      else skipped++;
+    });
+    addParsed(parsed, skipped, source, text);
+  };
+
+  const handleFile = async (file: File) => {
+    setFileName(file.name);
+    if (!/\.xlsx$/i.test(file.name)) {
+      toast("Please upload an Excel (.xlsx) file — one row per order: number, then GB", "error");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast("File is too large — maximum 5MB", "error");
+      return;
+    }
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await fetch("/api/orders/parse-excel", { method: "POST", body: fd });
+      const json = await res.json();
+      if (!res.ok) {
+        toast(json.error ?? "Failed to read the Excel file", "error");
+        return;
+      }
+      const rows: string[][] = json.rows ?? [];
+      const parsed: Line[] = [];
+      let skipped = 0;
+      for (const row of rows) {
+        const rawLine = row.join(",").trim();
+        if (!rawLine) continue;
+        const line = normalizeTextNumbers(rawLine);
+        if (isHeaderLine(line)) continue;
+        const parsedLine = parseOrderLine(line, packages, network);
+        if (parsedLine) parsed.push(parsedLine);
+        else skipped++;
+      }
+      addParsed(parsed, skipped, file.name);
+    } catch {
+      toast("Failed to read the Excel file", "error");
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file) void handleFile(file);
+  };
+
+  const total = lines.reduce((s, l) => s + (l.price ?? 0), 0);
+
+  const copyBulkText = async () => {
+    if (!bulkText.trim()) return;
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(bulkText);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = bulkText;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      setCopiedBulkText(true);
+      toast("Pasted text copied to clipboard", "success");
+      setTimeout(() => setCopiedBulkText(false), 2000);
+    } catch {
+      toast("Failed to copy text", "error");
+    }
+  };
+
+  const copyInsufficientBalanceOrders = async () => {
+    if (!insufficientBalanceModal?.orders.length) return;
+    const text = insufficientBalanceModal.orders
+      .map((o) => `${o.phoneNumber} ${o.gbAmount}gb`)
+      .join("\n");
+    try {
+      if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.style.position = "fixed";
+        ta.style.opacity = "0";
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+      }
+      setCopiedFromModal(true);
+      toast(`Copied ${insufficientBalanceModal.orders.length} order numbers to clipboard`, "success");
+      setTimeout(() => setCopiedFromModal(false), 2000);
+    } catch {
+      toast("Failed to copy numbers", "error");
+    }
+  };
+
+  const executeOrderSubmission = async (ordersToSend: Line[]) => {
+    if (submitting) return;
+    if (!ordersToSend.length) {
+      toast("Add at least one order", "error");
+      return;
+    }
+    setSubmitting(true);
+    setResult(null);
+    const orderCost = ordersToSend.reduce((s, l) => s + (l.price ?? 0), 0);
+    try {
+      const res = await fetch("/api/orders", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          orders: ordersToSend.map(({ phoneNumber, network: n, gbAmount: gb }) => ({
+            phoneNumber,
+            network: n,
+            gbAmount: gb,
+          })),
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        if (res.status === 402 || json.error?.toLowerCase().includes("insufficient balance")) {
+          const currentBal = userBalance ?? 0;
+          const deficit = Math.max(0, orderCost - currentBal);
+          setInsufficientBalanceModal({
+            needed: orderCost,
+            balance: currentBal,
+            deficit: deficit > 0 ? deficit : orderCost,
+            orders: ordersToSend,
+            message: json.error,
+          });
+        } else {
+          toast(json.error ?? "Failed to send orders", "error");
+        }
+        return;
+      }
+      setResult(`${json.count} order(s) sent — total ${formatGHS(json.total)}. Now processing.`);
+      setLines([]);
+      setBulkText("");
+      setFileName(null);
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.removeItem(DRAFT_STORAGE_KEY);
+        } catch {}
+        window.dispatchEvent(new Event("balance-update"));
+      }
+      toast("Orders sent!", "success");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const submit = async () => {
+    let ordersToSubmit = lines;
+    if (!ordersToSubmit.length && tab === "paste" && bulkText.trim()) {
+      const rawLines = splitOrderLines(bulkText);
+      const parsed: Line[] = [];
+      let skipped = 0;
+      rawLines.forEach((line) => {
+        if (isHeaderLine(line)) return;
+        const parsedLine = parseOrderLine(line, packages, network);
+        if (parsedLine) parsed.push(parsedLine);
+        else skipped++;
+      });
+      if (parsed.length > 0) {
+        addParsed(parsed, skipped, "pasted text", bulkText);
+        return;
+      }
+    }
+
+    if (!ordersToSubmit.length) {
+      toast("Add at least one order", "error");
+      return;
+    }
+
+    const currentTotal = ordersToSubmit.reduce((s, l) => s + (l.price ?? 0), 0);
+
+    // Pre-check balance if known
+    if (userBalance !== null && userBalance < currentTotal) {
+      const deficit = Math.max(0, currentTotal - userBalance);
+      setInsufficientBalanceModal({
+        needed: currentTotal,
+        balance: userBalance,
+        deficit,
+        orders: ordersToSubmit,
+        message: `Insufficient balance. You need GHS ${currentTotal.toFixed(2)} but have GHS ${userBalance.toFixed(2)}.`,
+      });
+      return;
+    }
+
+    // Pre-submission check for any unverified MTN numbers
+    const mtnLines = ordersToSubmit.filter((l) => l.network === "MTN");
+    if (mtnLines.length > 0) {
+      try {
+        const checkRes = await fetch("/api/mtn-verification/check", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ phoneNumbers: mtnLines.map((l) => l.phoneNumber) }),
+        });
+        if (checkRes.ok) {
+          const checkData = await checkRes.json();
+          const unverifiedList: string[] = checkData.unverifiedNumbers ?? [];
+          if (unverifiedList.length > 0) {
+            const unverifiedSet = new Set(unverifiedList);
+            setPendingUnverified({
+              toAdd: ordersToSubmit,
+              unverifiedNumbers: unverifiedList,
+              verifiedItems: ordersToSubmit.filter((l) => !unverifiedSet.has(l.phoneNumber)),
+              verificationEnabled: checkData.verificationEnabled ?? true,
+              rawText: null,
+              mode: "submit",
+            });
+            return;
+          }
+        }
+      } catch {
+        // continue
+      }
+    }
+
+    await executeOrderSubmission(ordersToSubmit);
+  };
+
+  return (
+    <div className="space-y-6">
+      {!submissionEnabled && (
+        <div className="flex items-center gap-3 rounded-2xl border border-red-300 bg-red-50 p-4 text-sm text-red-800 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300">
+          <ShieldAlert className="h-5 w-5 shrink-0 text-red-600 dark:text-red-400" />
+          <p>
+            <strong>Number Submission Paused:</strong> Order submission has been temporarily turned
+            off by the administrator. Please try again later.
+          </p>
+        </div>
+      )}
+
+      {result && (
+        <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400">
+          <Send className="h-4 w-4 shrink-0" /> {result}
+        </div>
+      )}
+
+      {/* Dual-Pane Modern Dispatch Terminal */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Column: Order Input & Queue Management */}
+        <div className="lg:col-span-7 xl:col-span-8 space-y-6">
+          {/* Upload card */}
+          <div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-xs dark:border-white/10 dark:bg-[#0d1627]/90">
+        <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4 dark:border-white/5">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-600/25">
+            <FileUp className="h-5 w-5" />
+          </span>
+          <div>
+            <h2 className="text-sm font-bold">Bulk Orders</h2>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Upload CSV/Excel files or paste numbers in bulk for batch dispatch
+            </p>
+          </div>
+        </div>
+        {/* Network + method */}
+        <div className="space-y-4 px-5 pt-4">
+          <div>
+            <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+              Network
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 rounded-xl bg-slate-100 p-1.5 dark:bg-white/5">
+              {NETWORKS.map((n) => {
+                const unavailable =
+                  !loading && packages.length > 0 && !packages.some((p) => p.network === n);
+                const isSelected = network === n;
+                let activeStyle = "";
+                let inactiveStyle = "";
+                if (n === "MTN") {
+                  activeStyle = "bg-amber-400 text-slate-950 font-bold shadow-md shadow-amber-400/30 ring-2 ring-amber-400 border border-amber-500";
+                  inactiveStyle = "text-amber-800 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-500/10";
+                } else if (n === "TELECEL") {
+                  activeStyle = "bg-red-600 text-white font-bold shadow-md shadow-red-600/30 ring-2 ring-red-500 border border-red-700";
+                  inactiveStyle = "text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10";
+                } else if (n === "AIRTELTIGO_BIGTIME") {
+                  activeStyle = "bg-cyan-600 text-white font-bold shadow-md shadow-cyan-600/30 ring-2 ring-cyan-500 border border-cyan-700";
+                  inactiveStyle = "text-cyan-700 hover:bg-cyan-50 dark:text-cyan-400 dark:hover:bg-cyan-500/10";
+                } else {
+                  activeStyle = "bg-blue-600 text-white font-bold shadow-md shadow-blue-600/30 ring-2 ring-blue-500 border border-blue-700";
+                  inactiveStyle = "text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-500/10";
+                }
+
+                return (
+                  <button
+                    key={n}
+                    onClick={() => setNetwork(n)}
+                    disabled={unavailable || !submissionEnabled}
+                    title={unavailable ? "No packages available for this network" : undefined}
+                    className={cn(
+                      "flex h-10 items-center justify-center rounded-lg text-xs sm:text-sm font-bold transition-all duration-150",
+                      isSelected ? activeStyle : inactiveStyle,
+                      unavailable &&
+                        "cursor-not-allowed opacity-40 hover:text-slate-500 dark:hover:text-slate-400"
+                    )}
+                  >
+                    {NETWORK_LABELS[n]}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-white/5">
+            {(
+              [
+                { key: "upload", label: "Upload File", icon: UploadCloud },
+                { key: "paste", label: "Paste Text", icon: ClipboardPaste },
+              ] as const
+            ).map((t) => (
+              <button
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                disabled={!submissionEnabled}
+                className={cn(
+                  "flex h-9 items-center justify-center gap-2 rounded-lg text-sm font-semibold transition-all",
+                  tab === t.key
+                    ? "bg-white text-brand-600 shadow-sm dark:bg-[#1a2438] dark:text-brand-400"
+                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
+                )}
+              >
+                <t.icon className="h-4 w-4" /> {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="p-5">
+          {loading ? (
+            <p className="py-8 text-center text-sm text-slate-500">Loading packages…</p>
+          ) : !submissionEnabled ? (
+            <div className="py-8 text-center text-sm text-slate-500">
+              Order submission is disabled.
+            </div>
+          ) : tab === "upload" ? (
+            <div className="space-y-3">
+              <div
+                onClick={() => !uploading && fileRef.current?.click()}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setDragging(true);
+                }}
+                onDragLeave={() => setDragging(false)}
+                onDrop={onDrop}
+                className={cn(
+                  "flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors",
+                  dragging
+                    ? "border-brand-500 bg-brand-50/60 dark:bg-brand-500/10"
+                    : "border-brand-400/50 hover:border-brand-500 hover:bg-brand-50/40 dark:hover:bg-brand-500/5",
+                  uploading && "pointer-events-none opacity-60"
+                )}
+              >
+                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-600/25">
+                  {uploading ? (
+                    <Loader2 className="h-6 w-6 animate-spin" />
+                  ) : (
+                    <UploadCloud className="h-6 w-6" />
+                  )}
+                </span>
+                <p className="text-sm font-semibold">
+                  {uploading ? (
+                    "Reading your file…"
+                  ) : (
+                    <>
+                      Drag &amp; drop your Excel file or{" "}
+                      <span className="text-brand-600 dark:text-brand-400">click to browse</span>
+                    </>
+                  )}
+                </p>
+                <p className="max-w-sm text-xs text-slate-500 dark:text-slate-400">
+                  Upload an Excel (.xlsx) file with one order per row — phone number first, then
+                  GB. Every row is sent to{" "}
+                  <span className="font-semibold">{NETWORK_LABELS[network]}</span>.
+                </p>
+                {fileName && (
+                  <p className="text-xs font-medium text-slate-600 dark:text-slate-300">
+                    Selected: {fileName}
+                  </p>
+                )}
+                <input
+                  ref={fileRef}
+                  type="file"
+                  accept=".xlsx"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0];
+                    if (f) void handleFile(f);
+                    e.target.value = "";
+                  }}
+                />
+              </div>
+              <a
+                href="/api/orders/template"
+                download="mycedinet-order-template.xlsx"
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:underline dark:text-brand-400"
+              >
+                <Download className="h-3.5 w-3.5" /> Download Excel template
+              </a>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <textarea
+                rows={6}
+                placeholder={"0535308873 1gb\n0241234567,2\n0507904981 10gb"}
+                value={bulkText}
+                onChange={(e) => setBulkText(e.target.value)}
+                onPaste={(e) => {
+                  const pasted = e.clipboardData?.getData("text");
+                  if (pasted) {
+                    e.preventDefault();
+                    const converted = normalizeTextNumbers(pasted);
+                    const target = e.currentTarget;
+                    const start = target.selectionStart ?? 0;
+                    const end = target.selectionEnd ?? 0;
+                    const val = target.value;
+                    const next = val.slice(0, start) + converted + val.slice(end);
+                    setBulkText(next);
+                  }
+                }}
+                onBlur={() => {
+                  if (bulkText) setBulkText(normalizeTextNumbers(bulkText));
+                }}
+                className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 caret-brand-600 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-100 dark:placeholder:text-slate-500 dark:caret-brand-400"
+              />
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="space-y-1">
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    One order per line:{" "}
+                    <span className="font-mono font-semibold">number, gb</span> — e.g.{" "}
+                    <span className="font-mono font-semibold">0535308873,1</span> or{" "}
+                    <span className="font-mono font-semibold">0241234567 2gb</span>. All orders go
+                    to <span className="font-semibold">{NETWORK_LABELS[network]}</span>
+                  </p>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
+                      ✓ Duplicate numbers are automatically filtered so only one order per number is sent.
+                    </p>
+                    {bulkText.trim() && (
+                      <span className="rounded-full bg-brand-500/10 px-2 py-0.5 text-[11px] font-bold text-brand-600 dark:text-brand-400">
+                        {splitOrderLines(bulkText).filter((l) => !isHeaderLine(l)).length} order(s) entered
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {bulkText.trim() && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={copyBulkText}
+                        className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+                        title="Copy text to clipboard"
+                      >
+                        {copiedBulkText ? (
+                          <>
+                            <Check className="h-3.5 w-3.5 text-emerald-500" />
+                            <span className="text-emerald-600 dark:text-emerald-400">Copied!</span>
+                          </>
+                        ) : (
+                          <>
+                            <Copy className="h-3.5 w-3.5 text-slate-400" />
+                            <span>Copy Text</span>
+                          </>
+                        )}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBulkText(normalizeTextNumbers(bulkText))}
+                        className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
+                      >
+                        Format Numbers
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setBulkText("")}
+                        className="inline-flex h-9 items-center gap-1 rounded-lg border border-transparent px-2.5 text-xs font-semibold text-red-500 transition hover:bg-red-50 dark:hover:bg-red-500/10"
+                        title="Clear textarea"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        <span>Clear</span>
+                      </button>
+                    </>
+                  )}
+                  <button
+                    onClick={() => {
+                      handleText(bulkText, "pasted text");
+                    }}
+                    disabled={!bulkText.trim() || !submissionEnabled}
+                    className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
+                  >
+                    <ClipboardPaste className="h-4 w-4" /> Parse &amp; add
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+          {/* Active Queue List */}
+          <QueueList
+            lines={lines}
+            onRemove={(i) => setLines((ls) => ls.filter((_, j) => j !== i))}
+            onClear={() => setLines([])}
+          />
+        </div>
+
+        {/* Right Column: Dispatch Action Center & Live Telemetry */}
+        <div className="lg:col-span-5 xl:col-span-4 space-y-5 lg:sticky lg:top-20">
+          <SendSummary
+            count={lines.length}
+            total={total}
+            submitting={submitting || !submissionEnabled}
+            onSubmit={submit}
+          />
+
+          <LiveDeliverySpeedCard network={network} />
+
+          {/* Quick Format & Template Guidelines */}
+          <div className="rounded-3xl border border-slate-200/80 bg-white/70 p-5 text-xs text-slate-500 shadow-xs backdrop-blur-md dark:border-white/5 dark:bg-[#0d1627]/60 space-y-2.5">
+            <h4 className="font-black text-slate-800 dark:text-slate-200 flex items-center gap-2">
+              <ClipboardPaste className="h-4 w-4 text-emerald-500" />
+              Quick Order Guidelines
+            </h4>
+            <p className="text-[11px] leading-relaxed">
+              Input format: recipient phone number, followed by bundle size (GB):
+            </p>
+            <div className="rounded-xl bg-slate-100 p-2.5 font-mono text-[10px] text-slate-700 dark:bg-white/5 dark:text-slate-300 space-y-0.5 select-all">
+              <div>0241234567 5gb</div>
+              <div>0509876543, 10</div>
+              <div>0271122334 - 2.5GB</div>
+            </div>
+            <p className="text-[10px] text-slate-400">
+              Headers and punctuation are handled automatically. Duplicate numbers are deduplicated.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Confirmation modal for Ported numbers */}
+      <Dialog
+        open={!!pendingPorted}
+        onClose={() => setPendingPorted(null)}
+        title="Ported MTN Number Detected"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+            <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+            <div className="text-xs space-y-1">
+              <p className="font-semibold">
+                Your MTN order list contains number(s) with non-MTN prefixes:
+              </p>
+              <p>
+                Normal MTN Ghana prefixes are:{" "}
+                <span className="font-mono font-bold">024, 025, 053, 054, 055, 059</span>.
+              </p>
+            </div>
+          </div>
+
+          <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/50">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500">
+              Detected Ported Number(s):
+            </p>
+            <ul className="space-y-1.5 text-xs font-mono">
+              {pendingPorted?.portedItems.map((item) => (
+                <li
+                  key={item.phoneNumber}
+                  className="flex items-center justify-between rounded-lg bg-white px-3 py-1.5 shadow-sm dark:bg-[#111c30]"
+                >
+                  <span className="font-bold text-slate-800 dark:text-slate-100">
+                    {item.phoneNumber}
+                  </span>
+                  <span className="rounded-md bg-amber-100 px-2 py-0.5 font-sans text-[11px] font-semibold text-amber-800 dark:bg-amber-500/20 dark:text-amber-300">
+                    {item.detectedNetwork} prefix ({item.gbAmount} GB)
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          <p className="text-xs text-slate-600 dark:text-slate-300">
+            If this recipient ported their number to <strong>MTN</strong>, they will receive the bundle
+            normally. If the number has NOT been ported to MTN, the order may fail.
+          </p>
+          <p className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+            Do you want to proceed and add these orders to the queue?
+          </p>
+
+          <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={cancelPortedAddition}
+            >
+              Cancel / Edit
+            </Button>
+            {pendingPorted && pendingPorted.nonPortedItems.length > 0 && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => confirmPortedAddition(false)}
+                className="border-amber-300 text-amber-800 hover:bg-amber-50 dark:border-amber-600/40 dark:text-amber-300 dark:hover:bg-amber-500/10"
+              >
+                Skip Ported &amp; Add Remaining ({pendingPorted.nonPortedItems.length})
+              </Button>
+            )}
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => confirmPortedAddition(true)}
+              className="bg-brand-600 hover:bg-brand-700 text-white"
+            >
+              Proceed with All ({pendingPorted?.toAdd.length ?? 0})
+            </Button>
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Confirmation modal for Unverified numbers */}
+      <Dialog
+        open={!!pendingUnverified}
+        onClose={() => setPendingUnverified(null)}
+        title="Unverified MTN Number(s) Detected"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-800 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300">
+            <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+            <div className="text-xs space-y-1">
+              <p className="font-semibold">
+                {pendingUnverified?.unverifiedNumbers.length} MTN number(s) have not been verified yet.
+              </p>
+              <p>
+                {pendingUnverified?.verificationEnabled
+                  ? "MTN Number Verification is currently enforced on the platform. Orders for unverified numbers cannot be placed."
+                  : "These numbers are not on the verified MTN list. You can remove them or proceed anyway (they will be logged for review)."}
+              </p>
+            </div>
+          </div>
+
+          <div className="max-h-48 overflow-y-auto rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-slate-800 dark:bg-slate-900/50">
+            <p className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Unverified Number(s) ({pendingUnverified?.unverifiedNumbers.length}):
+            </p>
+            <ul className="space-y-1.5 text-xs font-mono">
+              {pendingUnverified?.unverifiedNumbers.map((num) => {
+                const line = pendingUnverified.toAdd.find((l) => l.phoneNumber === num);
+                return (
+                  <li
+                    key={num}
+                    className="flex items-center justify-between rounded-lg bg-white px-3 py-1.5 shadow-sm dark:bg-[#111c30]"
+                  >
+                    <span className="font-bold text-slate-800 dark:text-slate-100">{num}</span>
+                    <span className="rounded-md bg-amber-100 px-2 py-0.5 font-sans text-[11px] font-semibold text-amber-800 dark:bg-amber-500/20 dark:text-amber-300">
+                      Unverified {line ? `(${line.gbAmount} GB)` : ""}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+
+          <p className="text-xs text-slate-600 dark:text-slate-300">
+            You can remove these unverified numbers and proceed with the remaining verified orders.
+          </p>
+
+          <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={copyUnverifiedNumbers}
+              className="gap-1.5"
+            >
+              {copiedUnverified ? (
+                <>
+                  <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span>Copied!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3.5 w-3.5 text-slate-500" />
+                  <span>Copy</span>
+                </>
+              )}
+            </Button>
+            {pendingUnverified && pendingUnverified.verifiedItems.length > 0 && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => confirmUnverifiedAddition(false)}
+                className="bg-brand-600 hover:bg-brand-700 text-white"
+              >
+                Remove Unverified &amp; Proceed ({pendingUnverified.verifiedItems.length})
+              </Button>
+            )}
+            {pendingUnverified && !pendingUnverified.verificationEnabled && (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => confirmUnverifiedAddition(true)}
+                className="border-amber-300 text-amber-800 hover:bg-amber-50 dark:border-amber-600/40 dark:text-amber-300 dark:hover:bg-amber-500/10"
+              >
+                Proceed with All ({pendingUnverified.toAdd.length})
+              </Button>
+            )}
+          </div>
+        </div>
+      </Dialog>
+
+      {/* Insufficient Balance Prompt Dialog */}
+      <Dialog
+        open={!!insufficientBalanceModal}
+        onClose={() => setInsufficientBalanceModal(null)}
+        title="Insufficient Wallet Balance"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-3.5 text-red-800 dark:border-red-500/30 dark:bg-red-500/10 dark:text-red-300">
+            <AlertTriangle className="h-5 w-5 shrink-0 text-red-600 dark:text-red-400 mt-0.5" />
+            <div className="text-xs space-y-1">
+              <p className="font-semibold text-sm">
+                You do not have enough wallet balance to send these orders.
+              </p>
+              <p className="text-red-700 dark:text-red-300">
+                {insufficientBalanceModal?.message || "Please top up your wallet to proceed."}
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 text-center dark:border-slate-800 dark:bg-slate-900/50">
+            <div>
+              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Total Required</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                {formatGHS(insufficientBalanceModal?.needed ?? 0)}
+              </p>
+            </div>
+            <div className="border-x border-slate-200 dark:border-slate-800">
+              <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">Current Balance</p>
+              <p className="text-sm font-bold text-slate-900 dark:text-slate-100">
+                {formatGHS(insufficientBalanceModal?.balance ?? 0)}
+              </p>
+            </div>
+            <div>
+              <p className="text-[11px] font-medium text-red-500 dark:text-red-400">Top-Up Needed</p>
+              <p className="text-sm font-bold text-red-600 dark:text-red-400">
+                {formatGHS(insufficientBalanceModal?.deficit ?? 0)}
+              </p>
+            </div>
+          </div>
+
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50/70 p-3 text-xs text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300">
+            <p className="font-semibold">✓ Your numbers have NOT been cleared</p>
+            <p className="mt-0.5 text-emerald-700 dark:text-emerald-400">
+              All {insufficientBalanceModal?.orders.length ?? 0} order(s) remain safely preserved in your queue and paste box. You can copy them below, or top up your wallet and return anytime — your orders will still be here.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={copyInsufficientBalanceOrders}
+              className="gap-1.5"
+            >
+              {copiedFromModal ? (
+                <>
+                  <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                  <span>Copied {insufficientBalanceModal?.orders.length} orders!</span>
+                </>
+              ) : (
+                <>
+                  <Copy className="h-3.5 w-3.5 text-slate-500" />
+                  <span>Copy Numbers ({insufficientBalanceModal?.orders.length})</span>
+                </>
+              )}
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setInsufficientBalanceModal(null)}
+            >
+              Keep &amp; Close
+            </Button>
+            <Link href="/dashboard/billing">
+              <Button
+                type="button"
+                size="sm"
+                className="bg-brand-600 hover:bg-brand-700 text-white gap-1.5"
+              >
+                <Wallet className="h-3.5 w-3.5" />
+                <span>Top Up Wallet</span>
+              </Button>
+            </Link>
+          </div>
+        </div>
+      </Dialog>
+    </div>
+  );
+}
