@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Globe, ExternalLink, Copy, Check, AlertTriangle, Loader2, Megaphone, Sparkles } from "lucide-react";
+import { cleanDomain, buildStorefrontUrl } from "@/lib/storefront-utils";
 
 interface Initial {
   slug: string;
@@ -39,9 +40,9 @@ export function StorefrontSettingsForm({
   const [slugBusy, setSlugBusy] = React.useState(false);
   const [copied, setCopied] = React.useState(false);
 
-  const cleanDomain = storefrontDomain.toLowerCase().replace(/^www\./, "");
-  const liveStoreUrl = `https://${cleanDomain}/${currentSlug}`;
-  const previewStoreUrl = `https://${cleanDomain}/${slugInput.trim() || currentSlug}`;
+  const cleanDomainStr = cleanDomain(storefrontDomain);
+  const liveStoreUrl = buildStorefrontUrl(currentSlug, cleanDomainStr);
+  const previewStoreUrl = buildStorefrontUrl(slugInput.trim() || currentSlug, cleanDomainStr);
 
   const set = (k: keyof Initial) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }));
@@ -100,7 +101,7 @@ export function StorefrontSettingsForm({
       setSlugInput(savedSlug);
       setSlugMsg({
         kind: "ok",
-        text: `Store address updated successfully to ${cleanDomain}/${savedSlug}!`,
+        text: `Store address updated successfully to ${cleanDomainStr}/${savedSlug}!`,
       });
       router.refresh();
     } catch (err) {
@@ -225,7 +226,7 @@ export function StorefrontSettingsForm({
             <div className="flex flex-col sm:flex-row sm:items-center">
               <div className="flex min-h-10 flex-1 items-stretch overflow-hidden rounded-lg border border-slate-300 focus-within:border-emerald-500 focus-within:ring-1 focus-within:ring-emerald-500 dark:border-slate-700">
                 <span className="flex items-center bg-slate-100 px-3 text-xs font-medium text-slate-500 select-none dark:bg-slate-800 dark:text-slate-400">
-                  https://{cleanDomain}/
+                  https://{cleanDomainStr}/
                 </span>
                 <input
                   type="text"

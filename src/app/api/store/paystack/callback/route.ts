@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { verifyWebhookSignature } from "@/lib/paystack";
 import { verifyAndSettleStorefrontOrder } from "@/lib/storefront";
 import { getRequestOrigin } from "@/lib/api-helpers";
+import { cleanDomain } from "@/lib/storefront-utils";
 
 /**
  * Public landing page after the Paystack hosted checkout for storefront
@@ -45,7 +46,7 @@ export async function GET(request: NextRequest) {
   // On success redirect to the dedicated order detail page.
   // If outcome was failed but we have a valid order reference and store slug,
   // redirect to the order detail page so the page can perform on-the-fly reconciliation!
-  const storefrontDomain = (process.env.STOREFRONT_DOMAIN || "mycedinetstore.com").toLowerCase();
+  const storefrontDomain = cleanDomain(process.env.STOREFRONT_DOMAIN, "mycedinetstore.com");
   const isStorefrontOrigin = origin.toLowerCase().includes(storefrontDomain);
 
   let target: string;

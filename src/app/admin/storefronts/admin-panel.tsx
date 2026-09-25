@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import { cleanDomain, buildStorefrontUrl } from "@/lib/storefront-utils";
 
 interface StorefrontRow {
   id: string;
@@ -52,7 +53,7 @@ export function AdminStorefrontPanel({
   initialStorefrontEnabled?: boolean;
 }) {
   const router = useRouter();
-  const storefrontDomain = process.env.NEXT_PUBLIC_STOREFRONT_DOMAIN || "mycedinetstore.com";
+  const storefrontDomain = cleanDomain(process.env.NEXT_PUBLIC_STOREFRONT_DOMAIN, "mycedinetstore.com");
   const [storefrontsActive, setStorefrontsActive] = React.useState(initialStorefrontEnabled);
   const [togglingMaster, setTogglingMaster] = React.useState(false);
   const [userId, setUserId] = React.useState(candidates[0]?.id ?? "");
@@ -320,7 +321,7 @@ export function AdminStorefrontPanel({
                 <td className="px-4 py-2">{s.owner}</td>
                 <td className="px-4 py-2">
                   <a
-                    href={`https://${storefrontDomain}/${s.slug}`}
+                    href={buildStorefrontUrl(s.slug, storefrontDomain)}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="font-semibold text-violet-600 hover:underline dark:text-violet-400"

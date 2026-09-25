@@ -2,11 +2,12 @@ import { requireUser } from "@/lib/auth";
 import { requireActiveStorefront } from "@/lib/storefront";
 import { StorefrontSettingsForm } from "./settings-form";
 import { StoreStatusToggle } from "@/components/storefront/store-status-toggle";
+import { cleanDomain } from "@/lib/storefront-utils";
 
 export default async function StorefrontSettingsPage() {
   const user = await requireUser();
   const storefront = await requireActiveStorefront(user.id);
-  const storefrontDomain = process.env.NEXT_PUBLIC_STOREFRONT_DOMAIN || "mycedinetstore.com";
+  const storefrontDomain = cleanDomain(process.env.NEXT_PUBLIC_STOREFRONT_DOMAIN, "mycedinetstore.com");
   return (
     <div className="space-y-6 p-4 sm:p-6">
       <header>

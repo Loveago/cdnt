@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { Prisma } from "@prisma/client";
 import { validateMtnOrderRecipient } from "./mtn-verification";
 import { verifyTransaction, PAYSTACK_CURRENCY } from "./paystack";
+import { cleanDomain } from "./storefront-utils";
 
 // ---------------------------------------------------------------------------
 // Money — all storefront money is stored as integer pesewas (GHS x 100) so
@@ -101,23 +102,15 @@ export function generateGuestEmail(domain: string): string {
 export function resolveStorefrontDomain(
   requestHeaders?: Headers | { get(name: string): string | null }
 ): string {
-  const configuredDomain = (
-    process.env.STOREFRONT_DOMAIN ||
-    process.env.NEXT_PUBLIC_STOREFRONT_DOMAIN ||
+  const configuredDomain = cleanDomain(
+    process.env.STOREFRONT_DOMAIN || process.env.NEXT_PUBLIC_STOREFRONT_DOMAIN,
     "mycedinetstore.com"
-  )
-    .trim()
-    .toLowerCase()
-    .replace(/^www\./, "");
+  );
 
-  const mainDomain = (
-    process.env.MAIN_DOMAIN ||
-    process.env.NEXT_PUBLIC_MAIN_DOMAIN ||
+  const mainDomain = cleanDomain(
+    process.env.MAIN_DOMAIN || process.env.NEXT_PUBLIC_MAIN_DOMAIN,
     "mycedinet.com"
-  )
-    .trim()
-    .toLowerCase()
-    .replace(/^www\./, "");
+  );
 
   if (!requestHeaders) return configuredDomain;
 
@@ -126,8 +119,7 @@ export function resolveStorefrontDomain(
     ? forwardedHost.split(",")[0].trim()
     : requestHeaders.get("host")?.split(",")[0].trim();
 
-  let requestHost = hostHeader ? hostHeader.split(":")[0].trim().toLowerCase() : "";
-  requestHost = requestHost.replace(/^www\./, "");
+  const requestHost = cleanDomain(hostHeader, "");
 
   if (
     !requestHost ||

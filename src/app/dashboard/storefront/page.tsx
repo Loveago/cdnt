@@ -16,6 +16,7 @@ import { requireActiveStorefront, ensureWallet, fromPesewas, storefrontOrderCode
 import { CopyShareButtons } from "@/components/storefront/copy-share-buttons";
 import { StoreStatusToggle } from "@/components/storefront/store-status-toggle";
 import { RecentOrdersView } from "@/components/storefront/recent-orders-view";
+import { cleanDomain, buildStorefrontUrl } from "@/lib/storefront-utils";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -51,8 +52,8 @@ export default async function StorefrontOverviewPage({
       }),
     ]);
 
-  const storefrontDomain = process.env.NEXT_PUBLIC_STOREFRONT_DOMAIN || "mycedinetstore.com";
-  const storeUrl = `https://${storefrontDomain}/${storefront.slug}`;
+  const storefrontDomain = cleanDomain(process.env.NEXT_PUBLIC_STOREFRONT_DOMAIN, "mycedinetstore.com");
+  const storeUrl = buildStorefrontUrl(storefront.slug, storefrontDomain);
   const stats = [
     {
       label: "Available balance",

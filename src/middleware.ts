@@ -15,14 +15,22 @@ const ADMIN_ONLY_PREFIXES = [
   "/admin/packages",
 ];
 
-const STOREFRONT_DOMAIN = (process.env.STOREFRONT_DOMAIN || "mycedinetstore.com").toLowerCase();
-const MAIN_DOMAIN = (process.env.MAIN_DOMAIN || "mycedinet.com").toLowerCase();
+import { cleanDomain } from "@/lib/storefront-utils";
+
+const STOREFRONT_DOMAIN = cleanDomain(
+  process.env.STOREFRONT_DOMAIN || process.env.NEXT_PUBLIC_STOREFRONT_DOMAIN,
+  "mycedinetstore.com"
+);
+const MAIN_DOMAIN = cleanDomain(
+  process.env.MAIN_DOMAIN || process.env.NEXT_PUBLIC_MAIN_DOMAIN,
+  "mycedinet.com"
+);
 
 export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
   const rawHost = request.headers.get("x-forwarded-host") || request.headers.get("host") || "";
-  const host = rawHost.split(":")[0].toLowerCase();
-  const isStorefrontDomain = host === STOREFRONT_DOMAIN || host === `www.${STOREFRONT_DOMAIN}`;
+  const host = cleanDomain(rawHost);
+  const isStorefrontDomain = host === STOREFRONT_DOMAIN;
   const isLocalhost = host.startsWith("localhost") || host.startsWith("127.0.0.1");
 
   // ---------------------------------------------------------------------------
