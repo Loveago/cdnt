@@ -1,11 +1,4 @@
-export type ProviderType = "MANUAL" | "BIGWINDATA" | "CLICKYFIED" | "GHCONNECT" | "BIGWIN_TELECEL";
-
-export interface BigwindataConfig {
-  enabled: boolean;
-  apiKey: string;
-  baseUrl: string;
-  webhookSecret: string;
-}
+export type ProviderType = "MANUAL" | "CLICKYFIED" | (string & {});
 
 export interface ClickyfiedConfig {
   enabled: boolean;
@@ -17,27 +10,15 @@ export interface ClickyfiedConfig {
   notReceivedEnabled: boolean;
 }
 
-export interface GhconnectConfig {
-  enabled: boolean;
-  apiKey: string;
-  baseUrl: string;
-}
-
-export interface BigwinTelecelConfig {
-  enabled: boolean;
-  apiKey: string;
-  baseUrl: string;
-}
-
 export interface ProviderRoutingConfig {
   enabled: boolean; // Master switch: if false, everything is manual export
   defaultProvider: ProviderType;
   autoDispatch: boolean; // Dispatch immediately on order creation
-  networkRoutes: Record<string, ProviderType>; // e.g. { "MTN": "CLICKYFIED", "TELECEL": "BIGWIN_TELECEL", "AIRTELTIGO_ISHARE": "GHCONNECT", "AIRTELTIGO_BIGTIME": "BIGWINDATA" }
-  bigwindata: BigwindataConfig;
+  networkRoutes: Record<string, ProviderType>; // e.g. { "MTN": "CLICKYFIED", "TELECEL": "CLICKYFIED", "AIRTELTIGO_ISHARE": "CLICKYFIED", "AIRTELTIGO_BIGTIME": "CLICKYFIED" }
   clickyfied: ClickyfiedConfig;
-  ghconnect: GhconnectConfig;
-  bigwinTelecel: BigwinTelecelConfig;
+  // Future provider integrations can be plugged in here
+  customProviders?: Record<string, unknown>;
+  [key: string]: any;
 }
 
 export interface BigwindataBundle {

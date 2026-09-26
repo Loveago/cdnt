@@ -5,8 +5,5 @@ export async function register() {
 
     const { startClickyfiedBatchRunner } = await import("./lib/provider-apis/clickyfied-batch");
     startClickyfiedBatchRunner();
-
-    const { startPartnerOrderPoller } = await import("./lib/provider-apis/partner-poller");
-    startPartnerOrderPoller();
   }
 }

@@ -46,61 +46,72 @@ export function BrandMark({
       >
         <defs>
           <linearGradient id="cediGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#34D399" />
-            <stop offset="50%" stopColor="#10B981" />
-            <stop offset="100%" stopColor="#06B6D4" />
+            <stop offset="0%" stopColor="#4ADE80" />
+            <stop offset="40%" stopColor="#10B981" />
+            <stop offset="100%" stopColor="#059669" />
           </linearGradient>
           <linearGradient id="pulseGlow" x1="100%" y1="0%" x2="0%" y2="100%">
             <stop offset="0%" stopColor="#38BDF8" />
-            <stop offset="100%" stopColor="#059669" />
+            <stop offset="50%" stopColor="#06B6D4" />
+            <stop offset="100%" stopColor="#10B981" />
           </linearGradient>
           <radialGradient id="nodeSphere" cx="35%" cy="35%" r="65%">
-            <stop offset="0%" stopColor="#A7F3D0" />
-            <stop offset="60%" stopColor="#10B981" />
+            <stop offset="0%" stopColor="#FFFFFF" />
+            <stop offset="30%" stopColor="#6EE7B7" />
+            <stop offset="75%" stopColor="#10B981" />
             <stop offset="100%" stopColor="#047857" />
           </radialGradient>
-          <filter id="softGlow" x="-20%" y="-20%" width="140%" height="140%">
-            <feGaussianBlur stdDeviation="3" result="blur" />
-            <feComposite in="SourceGraphic" in2="blur" operator="over" />
-          </filter>
+          <radialGradient id="cyanNode" cx="35%" cy="35%" r="65%">
+            <stop offset="0%" stopColor="#FFFFFF" />
+            <stop offset="35%" stopColor="#67E8F9" />
+            <stop offset="75%" stopColor="#06B6D4" />
+            <stop offset="100%" stopColor="#0284C7" />
+          </radialGradient>
+          <radialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
+            <stop offset="0%" stopColor="#10B981" stopOpacity="0.35" />
+            <stop offset="70%" stopColor="#059669" stopOpacity="0.12" />
+            <stop offset="100%" stopColor="#047857" stopOpacity="0" />
+          </radialGradient>
         </defs>
 
         {/* Ambient background pulse circle */}
-        <circle cx="64" cy="64" r="44" fill="#047857" opacity="0.15" filter="url(#softGlow)" />
+        <circle cx="64" cy="64" r="42" fill="url(#coreGlow)" />
 
-        {/* Outer orbital network arc */}
+        {/* Outer orbital network arc (₵ curve) */}
         <path
-          d="M 94 34 A 46 46 0 1 0 98 88"
+          d="M 95 33 A 44 44 0 1 0 95 95"
           fill="none"
           stroke="url(#cediGrad)"
-          strokeWidth="7"
+          strokeWidth="10"
           strokeLinecap="round"
-          strokeDasharray="96 8"
         />
 
         {/* Inner high-speed data flow arc */}
         <path
-          d="M 80 46 A 28 28 0 1 0 84 80"
+          d="M 82 46 A 26 26 0 1 0 82 82"
           fill="none"
           stroke="url(#pulseGlow)"
-          strokeWidth="6"
+          strokeWidth="7.5"
           strokeLinecap="round"
         />
 
         {/* The Cedi Currency Bar (₵ slash) through the center */}
         <path
-          d="M 44 26 L 84 102"
+          d="M 44 20 L 84 108"
           stroke="url(#cediGrad)"
-          strokeWidth="7.5"
+          strokeWidth="10"
           strokeLinecap="round"
         />
 
-        {/* Pulse Network Connectivity Nodes */}
-        <circle cx="94" cy="34" r="6" fill="url(#nodeSphere)" />
-        <circle cx="98" cy="88" r="5" fill="url(#nodeSphere)" />
-        <circle cx="64" cy="64" r="4.5" fill="#FFFFFF" />
-        <circle cx="84" cy="102" r="5.5" fill="url(#nodeSphere)" />
-        <circle cx="44" cy="26" r="4" fill="#67E8F9" />
+        {/* Connectivity Nodes & Data Packets */}
+        <circle cx="95" cy="33" r="6" fill="url(#nodeSphere)" />
+        <circle cx="95" cy="95" r="6" fill="url(#nodeSphere)" />
+        <circle cx="44" cy="20" r="5.5" fill="url(#cyanNode)" />
+        <circle cx="84" cy="108" r="5.5" fill="url(#nodeSphere)" />
+
+        {/* Central Luminous Data Beacon */}
+        <circle cx="64" cy="64" r="5" fill="#FFFFFF" />
+        <circle cx="64" cy="64" r="8.5" stroke="#34D399" strokeWidth="1.5" strokeOpacity="0.75" />
       </svg>
     </div>
   );

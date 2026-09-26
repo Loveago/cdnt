@@ -29,20 +29,11 @@ import {
 import Link from "next/link";
 import { ClickyfiedBillingChecker } from "@/components/admin/clickyfied-billing-checker";
 import {
-  DEFAULT_BIGWINDATA_API_KEY,
-  DEFAULT_BIGWINDATA_BASE_URL,
-} from "@/lib/provider-apis/bigwindata";
-import {
-  DEFAULT_BIGWIN_TELECEL_API_KEY,
-  DEFAULT_BIGWIN_TELECEL_BASE_URL,
-} from "@/lib/provider-apis/bigwin-telecel";
-import {
   DEFAULT_CLICKYFIED_API_KEY,
   DEFAULT_CLICKYFIED_CLIENT_ID,
   DEFAULT_CLICKYFIED_SANDBOX_URL,
   DEFAULT_CLICKYFIED_PROD_URL,
 } from "@/lib/provider-apis/clickyfied";
-import { DEFAULT_GHCONNECT_BASE_URL } from "@/lib/provider-apis/ghconnect";
 import { SUPPORTED_ROUTING_NETWORKS } from "@/lib/provider-apis/router";
 
 interface Props {
@@ -55,16 +46,9 @@ interface Props {
 export function ProviderApisSettings({ settings, setSettings, onSave, saving }: Props) {
   const { toast } = useToast();
 
-  const [showBigwinKey, setShowBigwinKey] = React.useState(false);
-  const [showBigwinTelecelKey, setShowBigwinTelecelKey] = React.useState(false);
   const [showClickyfiedKey, setShowClickyfiedKey] = React.useState(false);
-  const [showGhcKey, setShowGhcKey] = React.useState(false);
   const [syncing, setSyncing] = React.useState(false);
-  const [syncingPartner, setSyncingPartner] = React.useState(false);
-  const [testingBigwin, setTestingBigwin] = React.useState(false);
-  const [testingBigwinTelecel, setTestingBigwinTelecel] = React.useState(false);
   const [testingClickyfied, setTestingClickyfied] = React.useState(false);
-  const [testingGhc, setTestingGhc] = React.useState(false);
   const [batchStatus, setBatchStatus] = React.useState<{
     batchEnabled: boolean;
     pendingCount: number;
@@ -178,52 +162,12 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
   const isRoutingEnabled = settings.provider_routing_enabled === "true";
   const appBaseUrl =
     settings.app_base_url || (typeof window !== "undefined" ? window.location.origin : "");
-
-  const bigwinWebhookUrl = `${appBaseUrl}/api/webhooks/providers/bigwindata`;
-  const clickyfiedCallbackUrl = `${appBaseUrl}/api/webhooks/providers/clickyfied`;
+  const clickyfiedWebhookUrl = `${appBaseUrl}/api/webhooks/providers/clickyfied`;
+  const clickyfiedCallbackUrl = clickyfiedWebhookUrl;
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
     toast(`${label} copied to clipboard!`, "success");
-  };
-
-  const applyThreeWayPreset = () => {
-    setSettings((s) => ({
-      ...s,
-      provider_routing_enabled: "true",
-      provider_route_MTN: "CLICKYFIED",
-      provider_route_MTN_XPRESS: "CLICKYFIED",
-      provider_route_TELECEL: "BIGWINDATA",
-      provider_route_AIRTELTIGO_BIGTIME: "BIGWINDATA",
-      provider_route_AIRTELTIGO_ISHARE: "GHCONNECT",
-      clickyfied_enabled: "true",
-      bigwindata_enabled: "true",
-      ghconnect_enabled: "true",
-      ghconnect_base_url: s.ghconnect_base_url || DEFAULT_GHCONNECT_BASE_URL,
-    }));
-    toast("Preset applied: MTN → Clickyfied | Telecel & AT Big Time → Bigwin | AT iShare → GHConnect", "success");
-  };
-
-  // Preset helper matching user's requested configuration
-  const applyPreset = () => {
-    setSettings((s) => ({
-      ...s,
-      provider_routing_enabled: "true",
-      provider_route_MTN: "BIGWINDATA",
-      provider_route_MTN_XPRESS: "BIGWINDATA",
-      provider_route_TELECEL: "CLICKYFIED",
-      provider_route_AIRTELTIGO_ISHARE: "CLICKYFIED",
-      provider_route_AIRTELTIGO_BIGTIME: "CLICKYFIED",
-      bigwindata_enabled: "true",
-      clickyfied_enabled: "true",
-      clickyfied_client_id: s.clickyfied_client_id || DEFAULT_CLICKYFIED_CLIENT_ID,
-      clickyfied_mtn_verification_enabled: "true",
-      clickyfied_not_received_enabled: "true",
-      clickyfied_batch_enabled: "true",
-      clickyfied_batch_gb_threshold: s.clickyfied_batch_gb_threshold || "100",
-      clickyfied_batch_timer_minutes: s.clickyfied_batch_timer_minutes || "15",
-    }));
-    toast("Preset applied: MTN → Bigwindata | Telecel & AirtelTigo → Clickyfied", "success");
   };
 
   const applyClickyfiedAllPreset = () => {
@@ -244,12 +188,25 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
       clickyfied_batch_gb_threshold: s.clickyfied_batch_gb_threshold || "100",
       clickyfied_batch_timer_minutes: s.clickyfied_batch_timer_minutes || "15",
     }));
-    toast("Preset applied: All Networks → Clickyfied (Sandbox/Live)", "success");
+    toast("Preset applied: All Networks → Clickyfied (MTN, Telecel, AirtelTigo)", "success");
+  };
+
+  const applyManualAllPreset = () => {
+    setSettings((s) => ({
+      ...s,
+      provider_routing_enabled: "true",
+      provider_routing_default: "MANUAL",
+      provider_route_MTN: "MANUAL",
+      provider_route_MTN_XPRESS: "MANUAL",
+      provider_route_TELECEL: "MANUAL",
+      provider_route_AIRTELTIGO_ISHARE: "MANUAL",
+      provider_route_AIRTELTIGO_BIGTIME: "MANUAL",
+    }));
+    toast("Preset applied: All Networks → Manual File Export", "success");
   };
 
   const syncInFlight = async () => {
     setSyncing(true);
-    setTestResult(null);
     try {
       const res = await fetch("/api/admin/provider-apis/sync", { method: "POST" });
       const json = await res.json();
@@ -259,94 +216,6 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
       toast(err.message, "error");
     } finally {
       setSyncing(false);
-    }
-  };
-
-  const syncPartnerOrders = async () => {
-    setSyncingPartner(true);
-    setTestResult(null);
-    try {
-      const res = await fetch("/api/admin/provider-apis/sync-partner", { method: "POST" });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Partner sync failed");
-      toast(`Telecel & AT sync: ${json.checked} checked, ${json.updated} updated.`, "success");
-    } catch (err: any) {
-      toast(err.message, "error");
-    } finally {
-      setSyncingPartner(false);
-    }
-  };
-
-  const testBigwindata = async () => {
-    setTestingBigwin(true);
-    setTestResult(null);
-    try {
-      const res = await fetch("/api/admin/provider-apis/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "test_bigwindata_balance" }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Bigwindata check failed");
-      setTestResult({
-        provider: "Bigwindata",
-        success: true,
-        message: `Connected successfully! Balance: ${json.balance?.balance || "GHS " + json.balance?.rawBalance} (${json.balance?.currency || "GHS"})`,
-      });
-      toast("Bigwindata connection verified!", "success");
-    } catch (err: any) {
-      setTestResult({
-        provider: "Bigwindata",
-        success: false,
-        message: err.message,
-      });
-      toast(`Bigwindata error: ${err.message}`, "error");
-    } finally {
-      setTestingBigwin(false);
-    }
-  };
-
-  const testBigwinTelecel = async () => {
-    setTestingBigwinTelecel(true);
-    setTestResult(null);
-    try {
-      const res = await fetch("/api/admin/provider-apis/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "test_bigwin_telecel_packages" }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "Bigwin Telecel check failed");
-      const pkgs = Array.isArray(json.packages)
-        ? json.packages
-        : Array.isArray(json.packages?.packages)
-        ? json.packages.packages
-        : Array.isArray(json.packages?.data)
-        ? json.packages.data
-        : [];
-      const summary =
-        pkgs.length > 0
-          ? `${pkgs.length} packages available (${pkgs
-              .slice(0, 3)
-              .map((p: any) => `${p.dataGB || p.capacity || p.name || p.bundleSize || p.size || ""}GB`)
-              .filter(Boolean)
-              .join(", ")}...)`
-          : "Connected successfully!";
-      setTestResult({
-        provider: "Bigwin Telecel",
-        success: true,
-        message: `Connected to Bigwin Telecel Portal! ${summary}`,
-      });
-      toast("Bigwin Telecel connection verified!", "success");
-    } catch (err: any) {
-      setTestResult({
-        provider: "Bigwin Telecel",
-        success: false,
-        message: err.message,
-      });
-      toast(`Bigwin Telecel error: ${err.message}`, "error");
-    } finally {
-      setTestingBigwinTelecel(false);
     }
   };
 
@@ -379,41 +248,8 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
     }
   };
 
-  const testGhconnect = async () => {
-    setTestingGhc(true);
-    setTestResult(null);
-    try {
-      const res = await fetch("/api/admin/provider-apis/test", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "test_ghconnect_balance" }),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || "GHConnect check failed");
-      setTestResult({
-        provider: "GHConnect",
-        success: true,
-        message: `Connected successfully! Balance: GHS ${json.balance?.balance ?? json.balance?.rawBalance}`,
-      });
-      toast("GHConnect connection verified!", "success");
-    } catch (err: any) {
-      setTestResult({
-        provider: "GHConnect",
-        success: false,
-        message: err.message,
-      });
-      toast(`GHConnect error: ${err.message}`, "error");
-    } finally {
-      setTestingGhc(false);
-    }
-  };
-
-  const testSingleOrder = async (provider: "BIGWINDATA" | "CLICKYFIED") => {
-    const isBigwin = provider === "BIGWINDATA";
-    const msg = isBigwin
-      ? "Place a LIVE test 1GB MTN order to 0257467983 on Bigwindata? Balance will be deducted from Bigwindata."
-      : "Place a SANDBOX test 1GB MTN order to 0257467983 on Clickyfied sandbox?";
-
+  const testSingleOrder = async (_provider = "CLICKYFIED") => {
+    const msg = "Place a SANDBOX test 1GB MTN order to 0257467983 on Clickyfied sandbox?";
     if (!confirm(msg)) return;
 
     try {
@@ -422,7 +258,7 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           action: "test_order",
-          provider,
+          provider: "CLICKYFIED",
           network: "MTN",
           recipient: "0257467983",
           gbAmount: 1,
@@ -430,52 +266,32 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || "Test order failed");
-      toast(`Test order placed successfully on ${provider}!`, "success");
       setTestResult({
-        provider,
+        provider: "Clickyfied",
         success: true,
-        message: `Order submitted: ${JSON.stringify(json.purchase || json.order || json)}`,
+        message: `Test order submitted successfully! Ref: ${json.order?.orderId || json.order?.externalReference}`,
       });
+      toast("Test order submitted to Clickyfied!", "success");
     } catch (err: any) {
-      toast(`Test order failed: ${err.message}`, "error");
       setTestResult({
-        provider,
+        provider: "Clickyfied",
         success: false,
         message: err.message,
       });
+      toast(`Test order error: ${err.message}`, "error");
     }
   };
 
-  // Collect all network rows to display
-  const networkRows = React.useMemo(() => {
-    const list: Array<{ key: string; label: string; network: string }> = [
-      { key: "MTN", label: "MTN (Regular)", network: "MTN" },
-      { key: "MTN_XPRESS", label: "MTN Xpress", network: "MTN" },
-      { key: "TELECEL", label: "Telecel", network: "TELECEL" },
-      { key: "AIRTELTIGO_ISHARE", label: "AT iShare", network: "AIRTELTIGO" },
-      { key: "AIRTELTIGO_BIGTIME", label: "AT Big Time", network: "AIRTELTIGO_BIGTIME" },
-    ];
-
-    // Add any custom package categories configured in admin
-    if (settings.custom_package_categories) {
-      try {
-        const parsed = JSON.parse(settings.custom_package_categories);
-        if (Array.isArray(parsed)) {
-          for (const cat of parsed) {
-            const up = String(cat).trim().toUpperCase();
-            if (up && !list.some((item) => item.key === up)) {
-              list.push({ key: up, label: up, network: up });
-            }
-          }
-        }
-      } catch {}
-    }
-    return list;
-  }, [settings.custom_package_categories]);
-
+  const networkRows = [
+    { key: "MTN", label: "MTN Data (Regular)" },
+    { key: "MTN_XPRESS", label: "MTN Xpress (Special)" },
+    { key: "TELECEL", label: "Telecel / Vodafone" },
+    { key: "AIRTELTIGO_ISHARE", label: "AirtelTigo iShare" },
+    { key: "AIRTELTIGO_BIGTIME", label: "AirtelTigo Big Time" },
+  ];
   return (
     <div className="space-y-6">
-      {/* 1. Master Switch Card */}
+{/* 1. Master Switch Card */}
       <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-5">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="space-y-1">
@@ -491,7 +307,7 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 max-w-2xl leading-relaxed">
               When <strong>ON</strong>, orders placed for assigned networks are immediately dispatched
-              to Bigwindata or Clickyfied and status updates are tracked automatically.
+              to Clickyfied and status updates are tracked automatically.
               When <strong>OFF</strong>, orders remain in PENDING status for manual file export.
             </p>
           </div>
@@ -530,7 +346,7 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
               onChange={(e) => setSettings((s) => ({ ...s, app_base_url: e.target.value }))}
             />
             <p className="text-[11px] text-slate-400">
-              Used as the base domain when notifying Bigwindata and Clickyfied where to deliver status webhooks.
+              Used as the base domain when notifying provider APIs where to deliver status webhooks.
             </p>
           </div>
 
@@ -540,28 +356,19 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={applyThreeWayPreset}
-                className="text-xs text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-50 bg-emerald-50/50 dark:bg-emerald-950/30 font-semibold"
-              >
-                <Zap className="h-3.5 w-3.5 mr-1 text-emerald-600" /> Apply 3-Way Split Preset
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={applyPreset}
-                className="text-xs text-brand-600 dark:text-brand-400 border-brand-200 dark:border-brand-800 hover:bg-brand-50"
-              >
-                <Zap className="h-3.5 w-3.5 mr-1 text-brand-600" /> Split (MTN Bigwin)
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
                 onClick={applyClickyfiedAllPreset}
-                className="text-xs text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50"
+                className="text-xs text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50 font-semibold"
               >
                 <Zap className="h-3.5 w-3.5 mr-1 text-indigo-600" /> Route All → Clickyfied
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={applyManualAllPreset}
+                className="text-xs text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-50"
+              >
+                <FileSpreadsheet className="h-3.5 w-3.5 mr-1" /> Manual Export All
               </Button>
               <Button
                 type="button"
@@ -570,24 +377,12 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
                 onClick={syncInFlight}
                 disabled={syncing}
                 className="text-xs"
-                title="Sync Clickyfied in-flight MTN orders"
+                title="Sync Clickyfied in-flight orders"
               >
-                <RefreshCw className={`h-3.5 w-3.5 mr-1 ${syncing ? "animate-spin" : ""}`} /> Sync Clickyfied (MTN)
-              </Button>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={syncPartnerOrders}
-                disabled={syncingPartner}
-                className="text-xs border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/30"
-                title="Sync Bigwindata & GHConnect in-flight Telecel and AT orders"
-              >
-                <RefreshCw className={`h-3.5 w-3.5 mr-1 ${syncingPartner ? "animate-spin" : ""}`} /> Sync Telecel & AT
-              </Button>
-            </div>
+                <RefreshCw className={`h-3.5 w-3.5 mr-1 ${syncing ? "animate-spin" : ""}`} /> Sync Clickyfied Orders
+              </Button></div>
             <p className="text-[11px] text-slate-400">
-              Presets: <strong>3-Way Split</strong> (MTN → Clickyfied, Telecel/Big Time → Bigwin, AT iShare → GHConnect), <strong>Split</strong> (MTN → Bigwin, Telecel/AT → Clickyfied), or <strong>Route All</strong> (All networks → Clickyfied).
+              Presets: <strong>Route All</strong> (All networks → Clickyfied API), or <strong>Manual Export All</strong> (All orders stay in pending for manual excel export).
             </p>
           </div>
         </div>
@@ -697,126 +492,7 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
             </div>
           )}
         </div>
-
-        {/* Dedicated Telecel & AT (Bigwin, Bigwin Telecel & GHConnect) Status Poller Setting */}
-        <div className="mt-3 p-3.5 rounded-xl border border-amber-100 dark:border-amber-900/30 bg-amber-50/40 dark:bg-amber-950/10 space-y-3">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="space-y-0.5">
-              <div className="text-xs font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-                <RefreshCw
-                  className={`h-4 w-4 ${
-                    settings.partner_poller_enabled !== "false"
-                      ? "text-amber-600"
-                      : "text-slate-400"
-                  }`}
-                />
-                Telecel & AT Status Poller (Bigwin, Bigwin Telecel & GHConnect)
-                <span
-                  className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
-                    settings.partner_poller_enabled !== "false"
-                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
-                      : "bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
-                  }`}
-                >
-                  {settings.partner_poller_enabled !== "false"
-                    ? `Active (Every ${parseInt(settings.partner_poller_interval_seconds || "60", 10) || 60}s)`
-                    : "Paused"}
-                </span>
-              </div>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400 max-w-xl leading-relaxed">
-                Automatically queries <strong>Bigwindata</strong>, <strong>Bigwin Telecel</strong>, and <strong>GHConnect</strong> APIs every {parseInt(settings.partner_poller_interval_seconds || "60", 10) || 60} seconds for in-flight Telecel, AT Big Time, and AT iShare orders. Operates completely separately from Clickyfied so your Telecel & AT orders are continuously updated even when Clickyfied poller is OFF.
-              </p>
-            </div>
-            <div className="flex items-center gap-3 shrink-0">
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={syncPartnerOrders}
-                disabled={syncingPartner}
-                className="text-xs border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-300 hover:bg-amber-100 dark:hover:bg-amber-900/30"
-              >
-                <RefreshCw className={`h-3 w-3 mr-1 ${syncingPartner ? "animate-spin" : ""}`} /> Sync Now
-              </Button>
-              <button
-                type="button"
-                role="switch"
-                aria-checked={settings.partner_poller_enabled !== "false"}
-                onClick={() =>
-                  setSettings((s) => ({
-                    ...s,
-                    partner_poller_enabled:
-                      s.partner_poller_enabled === "false" ? "true" : "false",
-                  }))
-                }
-                className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-                  settings.partner_poller_enabled !== "false"
-                    ? "bg-amber-600"
-                    : "bg-slate-300 dark:bg-slate-700"
-                }`}
-              >
-                <span
-                  className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
-                    settings.partner_poller_enabled !== "false"
-                      ? "left-[22px]"
-                      : "left-0.5"
-                  }`}
-                />
-              </button>
-            </div>
-          </div>
-
-          {settings.partner_poller_enabled !== "false" && (
-            <div className="pt-2.5 border-t border-amber-200/50 dark:border-amber-900/40 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-              <div className="space-y-0.5">
-                <span className="font-medium text-slate-700 dark:text-slate-300">Polling Interval:</span>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                  Timer frequency for querying Bigwin and GHConnect APIs (default: 60s).
-                </p>
-              </div>
-              <div className="flex items-center gap-2">
-                {[30, 60, 120].map((sec) => (
-                  <button
-                    key={sec}
-                    type="button"
-                    onClick={() =>
-                      setSettings((s) => ({
-                        ...s,
-                        partner_poller_interval_seconds: String(sec),
-                      }))
-                    }
-                    className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors ${
-                      (parseInt(settings.partner_poller_interval_seconds || "60", 10) || 60) === sec
-                        ? "bg-amber-600 text-white shadow-sm"
-                        : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
-                    }`}
-                  >
-                    {sec}s {sec === 60 ? "(Default)" : ""}
-                  </button>
-                ))}
-                <div className="flex items-center gap-1">
-                  <input
-                    type="number"
-                    min="10"
-                    max="600"
-                    value={parseInt(settings.partner_poller_interval_seconds || "60", 10) || 60}
-                    onChange={(e) => {
-                      const val = e.target.value;
-                      setSettings((s) => ({
-                        ...s,
-                        partner_poller_interval_seconds: val,
-                      }));
-                    }}
-                    className="w-16 px-2 py-1 text-xs text-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-amber-500"
-                  />
-                  <span className="text-[11px] text-slate-500">sec</span>
-                </div>
-              </div>
-            </div>
-          )}
-        </div>
       </div>
-
       {/* Quick Link to Order API Logs */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-2xl border border-indigo-200/80 bg-indigo-50/60 p-4 shadow-sm dark:border-indigo-900/40 dark:bg-indigo-950/20">
         <div className="flex items-center gap-3">
@@ -828,7 +504,7 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
               Order API Logs & Diagnostics
             </h4>
             <p className="text-[11px] text-slate-600 dark:text-slate-400">
-              Inspect Clickyfied and Bigwindata request/response payloads, HTTP error codes, and why order dispatches failed.
+              Inspect provider API request/response payloads, HTTP error codes, and why order dispatches failed.
             </p>
           </div>
         </div>
@@ -869,14 +545,22 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
       {/* 2. Network Routing Matrix */}
       <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
         <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-sm font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
-              <Sliders className="h-4 w-4 text-brand-600" /> Network Provider Routing Matrix
-            </h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Choose which API provider automatically serves orders for each network. Select &quot;Manual Export&quot; to keep orders in pending queue.
-            </p>
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-lg bg-brand-50 dark:bg-brand-950/60 flex items-center justify-center text-brand-600">
+              <Sliders className="h-4 w-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                Network-to-Provider Routing Matrix
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Assign which provider delivers each network. Currently serving all networks via Clickyfied.
+              </p>
+            </div>
           </div>
+          <span className="text-xs font-mono text-slate-400 dark:text-slate-500">
+            {networkRows.length} Networks Configured
+          </span>
         </div>
 
         <div className="overflow-x-auto">
@@ -884,18 +568,18 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
             <thead>
               <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 uppercase tracking-wider">
                 <th className="py-2.5 px-3 font-medium">Network / Bundle Type</th>
-                <th className="py-2.5 px-3 font-medium text-center">Manual File Export</th>
-                <th className="py-2.5 px-3 font-medium text-center">Bigwindata API</th>
-                <th className="py-2.5 px-3 font-medium text-center">Bigwin Telecel</th>
                 <th className="py-2.5 px-3 font-medium text-center">Clickyfied API</th>
-                <th className="py-2.5 px-3 font-medium text-center">GHConnect API</th>
+                <th className="py-2.5 px-3 font-medium text-center">Manual File Export</th>
                 <th className="py-2.5 px-3 font-medium text-right">Active Mode</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
               {networkRows.map((row) => {
                 const settingKey = `provider_route_${row.key}`;
-                const currentVal = settings[settingKey] || "MANUAL";
+                const rawVal = settings[settingKey];
+                const currentVal = (rawVal === "BIGWINDATA" || rawVal === "GHCONNECT" || rawVal === "BIGWIN_TELECEL" || !rawVal)
+                  ? "CLICKYFIED"
+                  : rawVal;
 
                 return (
                   <tr key={row.key} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
@@ -904,56 +588,6 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
                         <span className="font-semibold">{row.label}</span>
                         <span className="text-[10px] text-slate-400 font-mono">({row.key})</span>
                       </div>
-                    </td>
-
-                    <td className="py-3 px-3 text-center">
-                      <label className="inline-flex items-center gap-1.5 cursor-pointer">
-                        <input
-                          type="radio"
-                          name={settingKey}
-                          value="MANUAL"
-                          checked={currentVal === "MANUAL"}
-                          onChange={() => setSettings((s) => ({ ...s, [settingKey]: "MANUAL" }))}
-                          className="text-brand-600 focus:ring-brand-500"
-                        />
-                        <span className="text-slate-600 dark:text-slate-400 text-xs">Manual</span>
-                      </label>
-                    </td>
-
-                    <td className="py-3 px-3 text-center">
-                      <label className="inline-flex items-center gap-1.5 cursor-pointer">
-                        <input
-                          type="radio"
-                          name={settingKey}
-                          value="BIGWINDATA"
-                          checked={currentVal === "BIGWINDATA"}
-                          onChange={() =>
-                            setSettings((s) => ({ ...s, [settingKey]: "BIGWINDATA" }))
-                          }
-                          className="text-amber-600 focus:ring-amber-500"
-                        />
-                        <span className="text-amber-700 dark:text-amber-400 font-medium text-xs">
-                          Bigwindata
-                        </span>
-                      </label>
-                    </td>
-
-                    <td className="py-3 px-3 text-center">
-                      <label className="inline-flex items-center gap-1.5 cursor-pointer">
-                        <input
-                          type="radio"
-                          name={settingKey}
-                          value="BIGWIN_TELECEL"
-                          checked={currentVal === "BIGWIN_TELECEL"}
-                          onChange={() =>
-                            setSettings((s) => ({ ...s, [settingKey]: "BIGWIN_TELECEL" }))
-                          }
-                          className="text-rose-600 focus:ring-rose-500"
-                        />
-                        <span className="text-rose-700 dark:text-rose-400 font-medium text-xs">
-                          Bigwin Telecel
-                        </span>
-                      </label>
                     </td>
 
                     <td className="py-3 px-3 text-center">
@@ -979,16 +613,12 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
                         <input
                           type="radio"
                           name={settingKey}
-                          value="GHCONNECT"
-                          checked={currentVal === "GHCONNECT"}
-                          onChange={() =>
-                            setSettings((s) => ({ ...s, [settingKey]: "GHCONNECT" }))
-                          }
-                          className="text-emerald-600 focus:ring-emerald-500"
+                          value="MANUAL"
+                          checked={currentVal === "MANUAL"}
+                          onChange={() => setSettings((s) => ({ ...s, [settingKey]: "MANUAL" }))}
+                          className="text-brand-600 focus:ring-brand-500"
                         />
-                        <span className="text-emerald-700 dark:text-emerald-400 font-medium text-xs">
-                          GHConnect
-                        </span>
+                        <span className="text-slate-600 dark:text-slate-400 text-xs">Manual</span>
                       </label>
                     </td>
 
@@ -997,25 +627,13 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
                           Export Manual (Routing Off)
                         </span>
-                      ) : currentVal === "BIGWINDATA" ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
-                          ⚡ Bigwindata
-                        </span>
-                      ) : currentVal === "BIGWIN_TELECEL" ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300">
-                          🔴 Bigwin Telecel
-                        </span>
-                      ) : currentVal === "CLICKYFIED" ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300">
-                          🚀 Clickyfied
-                        </span>
-                      ) : currentVal === "GHCONNECT" ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
-                          🟢 GHConnect
-                        </span>
-                      ) : (
+                      ) : currentVal === "MANUAL" ? (
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
                           📁 Manual Export
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300">
+                          🚀 Clickyfied
                         </span>
                       )}
                     </td>
@@ -1025,113 +643,18 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
             </tbody>
           </table>
         </div>
-      </div>
 
-      {/* 3. Bigwindata Configuration */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-amber-50 dark:bg-amber-950/60 flex items-center justify-center text-amber-600">
-              ⚡
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-                Bigwindata API Configuration
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Supports MTN, MTN Xpress, Telecel, AirtelTigo iShare & Big Time.
-              </p>
-            </div>
-          </div>
-
+        <div className="mt-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
           <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={testBigwindata}
-              disabled={testingBigwin}
-              className="text-xs"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 mr-1 ${testingBigwin ? "animate-spin" : ""}`} />
-              Check Balance
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => testSingleOrder("BIGWINDATA")}
-              className="text-xs border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-300 hover:bg-amber-50"
-            >
-              Test 1GB MTN
-            </Button>
+            <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            <span>Serving all active networks (MTN, Telecel, AirtelTigo) through <strong>Clickyfied</strong>.</span>
           </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-          <div className="space-y-1.5">
-            <Label>API Base URL</Label>
-            <Input
-              type="text"
-              value={settings.bigwindata_base_url ?? DEFAULT_BIGWINDATA_BASE_URL}
-              onChange={(e) => setSettings((s) => ({ ...s, bigwindata_base_url: e.target.value }))}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>API Key (X-API-Key)</Label>
-            <div className="relative">
-              <Input
-                type={showBigwinKey ? "text" : "password"}
-                value={settings.bigwindata_api_key ?? DEFAULT_BIGWINDATA_API_KEY}
-                onChange={(e) => setSettings((s) => ({ ...s, bigwindata_api_key: e.target.value }))}
-                className="pr-10 font-mono text-xs"
-              />
-              <button
-                type="button"
-                onClick={() => setShowBigwinKey(!showBigwinKey)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-              >
-                {showBigwinKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Webhook Secret (HMAC-SHA256)</Label>
-            <Input
-              type="text"
-              placeholder="Optional webhook secret for signature verification"
-              value={settings.bigwindata_webhook_secret ?? ""}
-              onChange={(e) =>
-                setSettings((s) => ({ ...s, bigwindata_webhook_secret: e.target.value }))
-              }
-              className="font-mono text-xs"
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>Inbound Webhook URL (Give to Bigwindata)</Label>
-            <div className="flex items-center gap-1.5">
-              <Input
-                readOnly
-                value={bigwinWebhookUrl}
-                className="bg-slate-50 dark:bg-slate-800 text-xs font-mono"
-              />
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => copyToClipboard(bigwinWebhookUrl, "Bigwindata Webhook URL")}
-              >
-                <Copy className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          </div>
+          <span className="text-[11px] text-slate-400 italic">Extensible for future provider APIs</span>
         </div>
       </div>
 
-      {/* 4. Clickyfied Configuration */}
+
+{/* 3. Clickyfied Configuration */}
       <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -1649,222 +1172,6 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
             <div id="clickyfied-billing-section" className="pt-4 border-t border-slate-200 dark:border-white/5">
               <ClickyfiedBillingChecker />
             </div>
-          </div>
-        </div>
-      </div>
-
-      {/* 4. GHConnect API Configuration */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 flex items-center justify-center text-emerald-600">
-              🟢
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-                GHConnect API Configuration
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Automated fulfillment for AT iShare bundles with automated 120s status checking.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={testGhconnect}
-              disabled={testingGhc || !settings.ghconnect_api_key}
-              className="text-xs h-8"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 mr-1 ${testingGhc ? "animate-spin" : ""}`} />
-              Test Balance
-            </Button>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={settings.ghconnect_enabled !== "false"}
-              onClick={() =>
-                setSettings((s) => ({
-                  ...s,
-                  ghconnect_enabled: s.ghconnect_enabled === "false" ? "true" : "false",
-                }))
-              }
-              className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-                settings.ghconnect_enabled !== "false"
-                  ? "bg-emerald-600"
-                  : "bg-slate-300 dark:bg-slate-700"
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
-                  settings.ghconnect_enabled !== "false" ? "left-[22px]" : "left-0.5"
-                }`}
-              />
-            </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-          <div className="space-y-1.5">
-            <Label>API Token / Key (Authorization: Bearer)</Label>
-            <div className="relative">
-              <Input
-                type={showGhcKey ? "text" : "password"}
-                placeholder="Enter your GHConnect API token"
-                value={settings.ghconnect_api_key ?? ""}
-                onChange={(e) =>
-                  setSettings((s) => ({ ...s, ghconnect_api_key: e.target.value }))
-                }
-                className="pr-10 font-mono text-xs"
-              />
-              <button
-                type="button"
-                onClick={() => setShowGhcKey(!showGhcKey)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-              >
-                {showGhcKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">
-              Obtained from your GHDataConnect dashboard account.
-            </p>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>API Base URL</Label>
-            <Input
-              type="text"
-              placeholder={DEFAULT_GHCONNECT_BASE_URL}
-              value={settings.ghconnect_base_url ?? DEFAULT_GHCONNECT_BASE_URL}
-              onChange={(e) =>
-                setSettings((s) => ({ ...s, ghconnect_base_url: e.target.value }))
-              }
-              className="font-mono text-xs"
-            />
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">
-              Default is <code className="px-1 bg-slate-100 dark:bg-slate-800 rounded">{DEFAULT_GHCONNECT_BASE_URL}</code>.
-            </p>
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-emerald-200/80 bg-emerald-50/60 p-3.5 text-xs text-emerald-900 dark:border-emerald-900/40 dark:bg-emerald-950/20 dark:text-emerald-300 flex items-start gap-2.5">
-          <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <p className="font-semibold">Automatic Status Poller Active</p>
-            <p className="text-[11px] text-emerald-800/90 dark:text-emerald-300/90">
-              In-flight orders dispatched to GHConnect are automatically polled every 120 seconds via <code className="px-1 bg-white/60 dark:bg-black/20 rounded">GET /v1/checkOrderStatus/:reference</code>. When GHConnect returns completed, the order is updated to Completed. If failed, it is automatically marked Failed and the customer is refunded.
-            </p>
-          </div>
-        </div>
-      </div>
-
-      {/* 5. Bigwin Telecel API Configuration (Dedicated Telecel Portal) */}
-      <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="h-8 w-8 rounded-lg bg-rose-50 dark:bg-rose-950/60 flex items-center justify-center text-rose-600 font-bold text-xs">
-              TEL
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
-                Bigwin Telecel API Configuration (Dedicated Telecel Portal)
-              </h3>
-              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Dedicated portal (bigwinportal.com) for Telecel bundles with automated background status poller.
-              </p>
-            </div>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={testBigwinTelecel}
-              disabled={testingBigwinTelecel}
-              className="text-xs h-8 border-rose-200 dark:border-rose-900/50 text-rose-700 dark:text-rose-300 hover:bg-rose-50 dark:hover:bg-rose-950/30"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 mr-1 ${testingBigwinTelecel ? "animate-spin" : ""}`} />
-              Test Connection
-            </Button>
-            <button
-              type="button"
-              role="switch"
-              aria-checked={settings.bigwin_telecel_enabled !== "false"}
-              onClick={() =>
-                setSettings((s) => ({
-                  ...s,
-                  bigwin_telecel_enabled: s.bigwin_telecel_enabled === "false" ? "true" : "false",
-                }))
-              }
-              className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
-                settings.bigwin_telecel_enabled !== "false"
-                  ? "bg-rose-600"
-                  : "bg-slate-300 dark:bg-slate-700"
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
-                  settings.bigwin_telecel_enabled !== "false" ? "left-[22px]" : "left-0.5"
-                }`}
-              />
-            </button>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
-          <div className="space-y-1.5">
-            <Label>API Key (x-api-key)</Label>
-            <div className="relative">
-              <Input
-                type={showBigwinTelecelKey ? "text" : "password"}
-                placeholder={DEFAULT_BIGWIN_TELECEL_API_KEY}
-                value={settings.bigwin_telecel_api_key ?? DEFAULT_BIGWIN_TELECEL_API_KEY}
-                onChange={(e) =>
-                  setSettings((s) => ({ ...s, bigwin_telecel_api_key: e.target.value }))
-                }
-                className="pr-10 font-mono text-xs"
-              />
-              <button
-                type="button"
-                onClick={() => setShowBigwinTelecelKey(!showBigwinTelecelKey)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-              >
-                {showBigwinTelecelKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-              </button>
-            </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">
-              API key provided by the Bigwin Telecel portal administrator.
-            </p>
-          </div>
-
-          <div className="space-y-1.5">
-            <Label>API Base URL</Label>
-            <Input
-              type="text"
-              placeholder={DEFAULT_BIGWIN_TELECEL_BASE_URL}
-              value={settings.bigwin_telecel_base_url ?? DEFAULT_BIGWIN_TELECEL_BASE_URL}
-              onChange={(e) =>
-                setSettings((s) => ({ ...s, bigwin_telecel_base_url: e.target.value }))
-              }
-              className="font-mono text-xs"
-            />
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">
-              Default is <code className="px-1 bg-slate-100 dark:bg-slate-800 rounded">{DEFAULT_BIGWIN_TELECEL_BASE_URL}</code>.
-            </p>
-          </div>
-        </div>
-
-        <div className="rounded-xl border border-rose-200/80 bg-rose-50/60 p-3.5 text-xs text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-300 flex items-start gap-2.5">
-          <CheckCircle2 className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
-          <div className="space-y-1">
-            <p className="font-semibold">Automatic Telecel Poller Active</p>
-            <p className="text-[11px] text-rose-800/90 dark:text-rose-300/90">
-              When Telecel orders are routed to Bigwin Telecel, orders are sent to <code className="px-1 bg-white/60 dark:bg-black/20 rounded">POST /api/v1/share/send</code> and tracked with reference prefix <code className="px-1 bg-white/60 dark:bg-black/20 rounded font-mono">BWTEL:</code>. The automated partner poller checks status via <code className="px-1 bg-white/60 dark:bg-black/20 rounded">GET /api/v1/share/status</code> and updates the order to Completed or Failed (with automatic refund).
-            </p>
           </div>
         </div>
       </div>

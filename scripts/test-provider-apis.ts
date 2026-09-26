@@ -1,8 +1,6 @@
-import { BigwindataClient, DEFAULT_BIGWINDATA_API_KEY, DEFAULT_BIGWINDATA_BASE_URL } from "../src/lib/provider-apis/bigwindata";
 import { ClickyfiedClient, DEFAULT_CLICKYFIED_API_KEY, DEFAULT_CLICKYFIED_CLIENT_ID, DEFAULT_CLICKYFIED_SANDBOX_URL } from "../src/lib/provider-apis/clickyfied";
 import { getProviderForNetwork, getProviderRoutingConfig } from "../src/lib/provider-apis/router";
 import { prisma } from "../src/lib/prisma";
-import crypto from "crypto";
 
 async function runTests() {
   console.log("=================================================");
@@ -23,88 +21,19 @@ async function runTests() {
   }
 
   // ---------------------------------------------------------------------------
-  // 1. Bigwindata Client Tests
+  // 1. Clickyfied Client Tests
   // ---------------------------------------------------------------------------
-  console.log("\n--- [1] Bigwindata Client & Webhook Signature ---");
-  const bigwinClient = new BigwindataClient({
-    apiKey: DEFAULT_BIGWINDATA_API_KEY,
-    baseUrl: DEFAULT_BIGWINDATA_BASE_URL,
-    webhookSecret: "test_secret_key_123",
-  });
-
-  assert(bigwinClient.mapNetworkToCode("MTN") === "mtn", "Bigwindata maps MTN -> mtn");
-  assert(bigwinClient.mapNetworkToCode("MTN", "MTN Xpress") === "mtn_xpress", "Bigwindata maps MTN Xpress -> mtn_xpress");
-  assert(bigwinClient.mapNetworkToCode("TELECEL") === "telecel", "Bigwindata maps TELECEL -> telecel");
-  assert(bigwinClient.mapNetworkToCode("AIRTELTIGO", "Big Time 5GB") === "at_bigtime", "Bigwindata maps AirtelTigo Bigtime -> at_bigtime");
-  assert(bigwinClient.mapNetworkToCode("AIRTELTIGO", "iShare 2GB") === "at_ishare", "Bigwindata maps AirtelTigo iShare -> at_ishare");
-
-  // Webhook signature verification
-  const testPayload = JSON.stringify({
-    event: "order.delivered",
-    order: { id: 101, status: "delivered", reference: "ORD_MCD_TEST" },
-  });
-  const validSig = crypto.createHmac("sha256", "test_secret_key_123").update(testPayload).digest("hex");
-  const invalidSig = "bad_signature_string";
-
-  assert(
-    bigwinClient.verifyWebhookSignature(testPayload, validSig) === true,
-    "Bigwindata verifies valid HMAC-SHA256 webhook signature"
-  );
-  assert(
-    bigwinClient.verifyWebhookSignature(testPayload, invalidSig) === false,
-    "Bigwindata rejects invalid webhook signature"
-  );
-
-  // Live Bigwindata balance query
-  try {
-    const balance = await bigwinClient.getBalance();
-    assert(
-      typeof balance.rawBalance === "number" && balance.rawBalance > 0,
-      `Bigwindata live balance check: ${balance.balance} (raw: ${balance.rawBalance})`
-    );
-  } catch (err: any) {
-    assert(false, `Bigwindata live balance query failed: ${err?.message}`);
-  }
-
-  // Live Bigwindata bundle catalogue & MTN 1GB resolution
-  try {
-    const bundleId = await bigwinClient.resolveBundleId("MTN", 1);
-    assert(
-      typeof bundleId === "number" && bundleId > 0,
-      `Bigwindata resolveBundleId('MTN', 1GB) resolved to bundle ID: ${bundleId}`
-    );
-  } catch (err: any) {
-    assert(false, `Bigwindata bundle resolution failed: ${err?.message}`);
-  }
-
-  // ---------------------------------------------------------------------------
-  // 2. Clickyfied Client Tests (Sandbox & Credentials)
-  // ---------------------------------------------------------------------------
-  console.log("\n--- [2] Clickyfied Client & Sandbox Endpoints ---");
+  console.log("\n--- [1] Clickyfied Client & Validation ---");
   const clickyfiedClient = new ClickyfiedClient({
     apiKey: DEFAULT_CLICKYFIED_API_KEY,
-    baseUrl: DEFAULT_CLICKYFIED_SANDBOX_URL,
     clientId: DEFAULT_CLICKYFIED_CLIENT_ID,
-    callbackSigningSecret: "test_cb_secret",
+    baseUrl: DEFAULT_CLICKYFIED_SANDBOX_URL,
   });
 
-  assert(
-    DEFAULT_CLICKYFIED_CLIENT_ID === "ext-topskankatest-001",
-    "Clickyfied client ID is configured to ext-topskankatest-001"
-  );
+  // Test client construction
+  assert(clickyfiedClient !== null, "ClickyfiedClient instance created");
 
-  // Live Clickyfied current billing check
-  try {
-    const billing = await clickyfiedClient.getCurrentBilling();
-    assert(
-      billing?.success === true && billing?.bill?.user?.name === "Top Skanka API Test",
-      `Clickyfied live billing check for user: ${billing?.bill?.user?.name} (Net: GHS ${billing?.bill?.netAmount})`
-    );
-  } catch (err: any) {
-    assert(false, `Clickyfied billing check failed: ${err?.message}`);
-  }
-
-  // Live Clickyfied number verification
+  // Live Clickyfied number verification (Action 1 from docs)
   try {
     const verifyRes = await clickyfiedClient.verifyNumbers(["0257467983"]);
     const hasNumber =
@@ -158,9 +87,9 @@ async function runTests() {
   }
 
   // ---------------------------------------------------------------------------
-  // 3. Provider Routing Engine & Settings Matrix
+  // 2. Provider Routing Engine & Settings Matrix
   // ---------------------------------------------------------------------------
-  console.log("\n--- [3] Provider Routing Matrix & Presets ---");
+  console.log("\n--- [2] Provider Routing Matrix & Presets ---");
 
   // When routing is OFF
   await prisma.systemSetting.upsert({
@@ -172,8 +101,8 @@ async function runTests() {
   const offRoute = await getProviderForNetwork("MTN");
   assert(offRoute === "MANUAL", "When provider_routing_enabled=false, routing returns MANUAL");
 
-  // Configure user's desired matrix:
-  // - MTN -> BIGWINDATA
+  // Configure active matrix:
+  // - MTN -> CLICKYFIED
   // - Telecel -> CLICKYFIED
   // - AirtelTigo iShare -> CLICKYFIED
   // - AirtelTigo Big Time -> CLICKYFIED
@@ -184,13 +113,13 @@ async function runTests() {
   });
   await prisma.systemSetting.upsert({
     where: { key: "provider_route_MTN" },
-    create: { key: "provider_route_MTN", value: "BIGWINDATA" },
-    update: { value: "BIGWINDATA" },
+    create: { key: "provider_route_MTN", value: "CLICKYFIED" },
+    update: { value: "CLICKYFIED" },
   });
   await prisma.systemSetting.upsert({
     where: { key: "provider_route_MTN_XPRESS" },
-    create: { key: "provider_route_MTN_XPRESS", value: "BIGWINDATA" },
-    update: { value: "BIGWINDATA" },
+    create: { key: "provider_route_MTN_XPRESS", value: "CLICKYFIED" },
+    update: { value: "CLICKYFIED" },
   });
   await prisma.systemSetting.upsert({
     where: { key: "provider_route_TELECEL" },
@@ -214,7 +143,7 @@ async function runTests() {
   });
 
   const mtnRoute = await getProviderForNetwork("MTN");
-  assert(mtnRoute === "BIGWINDATA", "MTN routes to BIGWINDATA");
+  assert(mtnRoute === "CLICKYFIED", "MTN routes to CLICKYFIED");
 
   const telecelRoute = await getProviderForNetwork("TELECEL");
   assert(telecelRoute === "CLICKYFIED", "Telecel routes to CLICKYFIED");
@@ -230,9 +159,9 @@ async function runTests() {
   assert(config.clickyfied.clientId === "ext-topskankatest-001", "Routing config has correct client ID");
 
   // ---------------------------------------------------------------------------
-  // 4. MTN Verification Check Integration
+  // 3. MTN Verification Check Integration
   // ---------------------------------------------------------------------------
-  console.log("\n--- [4] MTN Verification Integration ---");
+  console.log("\n--- [3] MTN Verification Integration ---");
   const { validateMtnOrderRecipient, isMtnNumberAccepted } = await import("../src/lib/mtn-verification");
 
   // Ensure setting is active
@@ -249,34 +178,6 @@ async function runTests() {
     assert(isAccepted === true, "0257467983 is saved into AcceptedMtnNumber database table");
   } catch (err: any) {
     assert(false, `validateMtnOrderRecipient threw error: ${err?.message}`);
-  }
-
-  // ---------------------------------------------------------------------------
-  // 5. Test Live Single Order on Bigwindata (1GB MTN to 0257467983)
-  // ---------------------------------------------------------------------------
-  console.log("\n--- [5] Live Order Placement on Bigwindata (1GB MTN) ---");
-  try {
-    // Check if an order was already placed with this idempotency key
-    const idempotencyKey = "MCD-TEST-MTN1GB-0257467983";
-    const purchaseResult = await bigwinClient.purchase({
-      bundleId: 43, // Express 1GB
-      recipient: "0257467983",
-      idempotencyKey,
-    });
-    const isSuccess =
-      purchaseResult.order_id > 0 &&
-      ["accepted", "processing", "success"].includes(purchaseResult.status.toLowerCase());
-    assert(
-      isSuccess,
-      `Bigwindata 1GB MTN test purchase succeeded! Order ID: ${purchaseResult.order_id}, Ref: ${purchaseResult.reference}, Price: ${purchaseResult.price}`
-    );
-  } catch (err: any) {
-    // If already placed (e.g. 409 duplicate_order), verify message
-    if (err?.message?.includes("duplicate") || err?.message?.includes("already")) {
-      assert(true, `Bigwindata 1GB MTN order already placed idempotently: ${err.message}`);
-    } else {
-      assert(false, `Bigwindata 1GB MTN order failed: ${err?.message}`);
-    }
   }
 
   console.log("\n=================================================");

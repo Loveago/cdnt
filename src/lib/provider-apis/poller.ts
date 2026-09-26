@@ -60,7 +60,7 @@ export function startProviderSyncPoller() {
 
       const { getProviderRoutingConfig } = await import("./router");
       const config = await getProviderRoutingConfig();
-      if (!config.enabled || (!config.clickyfied.enabled && !config.ghconnect?.enabled)) {
+      if (!config.enabled || !config.clickyfied.enabled) {
         return;
       }
 
