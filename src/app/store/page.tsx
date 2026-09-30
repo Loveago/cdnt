@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
@@ -8,19 +8,12 @@ import {
   Search,
   ShieldCheck,
   Zap,
-  CheckCircle2,
   Sparkles,
-  Layers,
-  Smartphone,
   Store,
   Terminal,
   Activity,
-  Radio,
   Cpu,
-  ArrowUpRight,
-  TrendingUp,
 } from "lucide-react";
-import { BrandMark } from "@/components/brand-logo";
 
 const LIVE_DISPATCHES = [
   { time: "Just now", network: "MTN", bundle: "5GB Non-Expiry", phone: "024***8921", latency: "1.2s", status: "DELIVERED" },
@@ -29,11 +22,28 @@ const LIVE_DISPATCHES = [
   { time: "1m ago", network: "MTN", bundle: "20GB Big-Pack", phone: "054***9012", latency: "1.4s", status: "DELIVERED" },
 ];
 
-const POPULAR_HANDLES = ["alpha-data", "ghana-bundles", "swift-telecom", "cedinet-prime"];
+const POPULAR_HANDLES = ["alpha-data", "ghana-bundles", "swift-telecom", "prime-data"];
 
 export default function StorefrontIndexPage() {
   const router = useRouter();
   const [slugInput, setSlugInput] = useState("");
+  const [displayHost, setDisplayHost] = useState("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const host = window.location.host.replace(/^www\./, "");
+      if (
+        !host ||
+        host.includes("localhost") ||
+        host.includes("127.0.0.1") ||
+        host.toLowerCase().includes("mycedinet")
+      ) {
+        setDisplayHost("mycedishop.com");
+      } else {
+        setDisplayHost(host);
+      }
+    }
+  }, []);
 
   function handleGoToStore(e: React.FormEvent, customSlug?: string) {
     if (e) e.preventDefault();
@@ -60,28 +70,23 @@ export default function StorefrontIndexPage() {
       {/* Top Navigation Bar */}
       <header className="relative z-20 border-b border-white/[0.08] px-4 sm:px-8 py-4 backdrop-blur-xl bg-slate-950/60 sticky top-0">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <Link href="/store" className="flex items-center gap-3 group">
-            <BrandMark size="sm" />
+          <Link href="/" className="flex items-center gap-3 group">
+            <div className="flex h-9 w-9 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-900 via-emerald-950 to-slate-950 ring-1 ring-emerald-500/20 text-emerald-400 group-hover:ring-emerald-500/40 transition-all">
+              <Store className="h-5 w-5 text-emerald-400" />
+            </div>
             <div className="flex items-baseline leading-none">
               <span className="font-black tracking-tight text-lg text-white group-hover:text-emerald-400 transition-colors">
-                mycedinet<span className="text-emerald-400">store</span>
+                cedi<span className="text-emerald-400">shop</span>
               </span>
               <span className="text-xs text-slate-500 ml-1">.com</span>
             </div>
           </Link>
 
           <div className="flex items-center gap-3">
-            <div className="hidden sm:inline-flex items-center gap-2 text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-1.5 rounded-full">
+            <div className="inline-flex items-center gap-2 text-xs font-semibold text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-3.5 py-1.5 rounded-full">
               <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
               Telecom Switching Live
             </div>
-            <Link
-              href="/login"
-              className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-200 bg-white/10 hover:bg-white/15 border border-white/15 px-4 py-2 rounded-xl transition"
-            >
-              Merchant Portal
-              <ArrowUpRight className="h-3.5 w-3.5 text-emerald-400" />
-            </Link>
           </div>
         </div>
       </header>
@@ -105,7 +110,7 @@ export default function StorefrontIndexPage() {
             </h1>
 
             <p className="text-slate-400 text-sm sm:text-base max-w-xl leading-relaxed">
-              Every merchant on MyCediNet operates an automated digital shop with direct telecom switch integration.
+              Every verified merchant operates an automated digital shop with direct telecom switch integration.
               Select packages, pay with Mobile Money, and receive non-expiry SIM data in under 2 seconds.
             </p>
 
@@ -116,9 +121,9 @@ export default function StorefrontIndexPage() {
                 className="flex flex-col sm:flex-row items-stretch gap-2.5 bg-slate-900/90 border border-white/15 rounded-2xl p-2.5 shadow-2xl backdrop-blur-xl focus-within:border-emerald-500/60 focus-within:ring-2 focus-within:ring-emerald-500/20 transition-all"
               >
                 <div className="flex items-center flex-1 px-3 text-slate-400 text-sm">
-                  <span className="font-semibold text-emerald-500 select-none mr-2 flex items-center gap-1.5">
+                  <span className="font-semibold text-emerald-500 select-none mr-2 flex items-center gap-1.5 shrink-0">
                     <Store className="h-4 w-4" />
-                    mycedinet.com/store/
+                    {displayHost ? `${displayHost}/` : "store/"}
                   </span>
                   <input
                     type="text"
@@ -257,7 +262,7 @@ export default function StorefrontIndexPage() {
                 Instant Automated Dispatch Engine
               </h3>
               <p className="mt-2 text-sm text-slate-400 leading-relaxed max-w-xl">
-                Unlike legacy manual resellers, stores on MyCediNet trigger immediate automated packet dispatches directly upon payment confirmation. Bundles land on recipient SIM cards without delay.
+                Unlike legacy manual resellers, stores on this network trigger immediate automated packet dispatches directly upon payment confirmation. Bundles land on recipient SIM cards without delay.
               </p>
             </div>
             <div className="grid grid-cols-3 gap-2 pt-2 text-center text-xs">
@@ -300,13 +305,27 @@ export default function StorefrontIndexPage() {
 
       {/* Global Footer */}
       <footer className="relative z-10 border-t border-white/[0.08] px-4 sm:px-8 py-6 backdrop-blur-md bg-slate-950/60 text-xs text-slate-500">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <BrandMark size="xs" />
-            <span className="font-semibold text-slate-400">MyCediNet Reseller Network © 2026</span>
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex flex-wrap items-center gap-2 text-slate-400">
+            <div className="flex h-5 w-5 items-center justify-center rounded-md bg-emerald-500/20 text-emerald-400">
+              <Store className="h-3 w-3" />
+            </div>
+            <span className="font-semibold text-slate-300">Reseller Telecom Network © {new Date().getFullYear()}</span>
+            <span>·</span>
+            <a
+              href="https://wa.me/233507904981"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 text-slate-400 hover:text-emerald-400 transition-colors group"
+            >
+              <span>Powered by</span>
+              <span className="font-bold text-emerald-400 group-hover:underline">
+                Crazy Tech Enterprise
+              </span>
+            </a>
           </div>
           <div className="flex items-center gap-4 text-slate-400">
-            <span>Powered by Telecom Microservices</span>
+            <span>Direct Telecom Switch</span>
             <span>·</span>
             <span className="flex items-center gap-1 text-emerald-400">
               <ShieldCheck className="h-3.5 w-3.5" /> Direct Carrier Switched

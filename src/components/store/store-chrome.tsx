@@ -287,7 +287,7 @@ export function StoreChrome(props: StoreChromeProps) {
                 <div>
                   <h3 className="text-xl font-black tracking-tight text-slate-900 dark:text-white">{name}</h3>
                   <span className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold">
-                    MyCediNet Reseller Network Verified
+                    Verified Telecom Reseller Partner
                   </span>
                 </div>
               </div>
@@ -356,8 +356,20 @@ export function StoreChrome(props: StoreChromeProps) {
           </div>
 
           <div className="mt-10 flex flex-col gap-3 border-t border-slate-100 pt-6 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between dark:border-white/10">
-            <p>
-              {name} © {new Date().getFullYear()} · Infrastructure by <span className="font-bold text-slate-800 dark:text-slate-200">MyCediNet</span>
+            <p className="flex flex-wrap items-center gap-1.5">
+              <span>{name} © {new Date().getFullYear()}</span>
+              <span>·</span>
+              <a
+                href="https://wa.me/233507904981"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors group"
+              >
+                <span>Powered by</span>
+                <span className="font-semibold text-emerald-600 dark:text-emerald-400 group-hover:underline">
+                  Crazy Tech Enterprise
+                </span>
+              </a>
             </p>
             <div className="flex items-center gap-3">
               <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-600 dark:text-emerald-400">

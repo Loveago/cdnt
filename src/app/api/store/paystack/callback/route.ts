@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
   // On success redirect to the dedicated order detail page.
   // If outcome was failed but we have a valid order reference and store slug,
   // redirect to the order detail page so the page can perform on-the-fly reconciliation!
-  const storefrontDomain = cleanDomain(process.env.STOREFRONT_DOMAIN, "mycedinetstore.com");
+  const storefrontDomain = cleanDomain(process.env.STOREFRONT_DOMAIN, "mycedishop.com");
   const isStorefrontOrigin = origin.toLowerCase().includes(storefrontDomain);
 
   let target: string;

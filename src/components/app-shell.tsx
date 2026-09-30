@@ -428,30 +428,63 @@ export function AppShell({
             </div>
             {supportPhone && <p className="truncate">📞 {supportPhone}</p>}
             {supportTelegram && <p className="truncate">✈️ {supportTelegram}</p>}
+            <div className="pt-2 border-t border-slate-200/40 dark:border-white/5">
+              <a
+                href="https://wa.me/233507904981"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[10px] text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors group"
+              >
+                <span>Powered by</span>
+                <span className="font-semibold text-slate-600 dark:text-slate-300 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 underline decoration-slate-300 dark:decoration-slate-600 underline-offset-2">
+                  Crazy Tech Enterprise
+                </span>
+              </a>
+            </div>
           </div>
         </aside>
 
         {/* Main Content Viewport */}
-        <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-6 pb-28 sm:pb-20">
-          {isSecretaryRestricted ? (
-            <div className="mx-auto my-16 max-w-md rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center dark:border-amber-500/20 dark:bg-amber-500/10">
-              <Lock className="mx-auto h-10 w-10 text-amber-600 dark:text-amber-400" />
-              <h2 className="mt-3 text-base font-bold text-amber-900 dark:text-amber-200">
-                Page Access Restricted
-              </h2>
-              <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
-                Your account does not have access permissions for this section. Please contact the system administrator if you need access.
-              </p>
-              <Link
-                href="/admin"
-                className="mt-5 inline-flex items-center rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow transition hover:bg-emerald-700"
+        <main className="min-w-0 flex-1 px-4 py-5 sm:px-6 sm:py-6 pb-28 sm:pb-20 flex flex-col justify-between">
+          <div>
+            {isSecretaryRestricted ? (
+              <div className="mx-auto my-16 max-w-md rounded-2xl border border-amber-200 bg-amber-50 p-8 text-center dark:border-amber-500/20 dark:bg-amber-500/10">
+                <Lock className="mx-auto h-10 w-10 text-amber-600 dark:text-amber-400" />
+                <h2 className="mt-3 text-base font-bold text-amber-900 dark:text-amber-200">
+                  Page Access Restricted
+                </h2>
+                <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+                  Your account does not have access permissions for this section. Please contact the system administrator if you need access.
+                </p>
+                <Link
+                  href="/admin"
+                  className="mt-5 inline-flex items-center rounded-xl bg-emerald-600 px-4 py-2 text-xs font-semibold text-white shadow transition hover:bg-emerald-700"
+                >
+                  Return to Admin Overview
+                </Link>
+              </div>
+            ) : (
+              children
+            )}
+          </div>
+
+          {/* Desktop/Tablet Global Bottom Footer */}
+          <footer className="mt-12 border-t border-slate-200/70 dark:border-white/5 pt-5 text-xs text-slate-400">
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-2 max-w-7xl mx-auto">
+              <p>{footerText || "MyCediNet Telecom © 2026 · All Rights Reserved"}</p>
+              <a
+                href="https://wa.me/233507904981"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-slate-500 hover:text-emerald-600 dark:text-slate-400 dark:hover:text-emerald-400 font-medium transition-colors group"
               >
-                Return to Admin Overview
-              </Link>
+                <span>Powered by</span>
+                <span className="font-bold text-slate-700 dark:text-slate-200 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 underline decoration-slate-300 dark:decoration-slate-600 underline-offset-2">
+                  Crazy Tech Enterprise
+                </span>
+              </a>
             </div>
-          ) : (
-            children
-          )}
+          </footer>
         </main>
       </div>
 
@@ -527,8 +560,8 @@ export function AppShell({
               <AppSidebarNav items={items} admin={admin} onNavigate={() => setMobileDrawerOpen(false)} />
             </div>
 
-            {/* Drawer Signout Button */}
-            <div className="pt-6 border-t border-slate-100 dark:border-white/10 mt-6">
+            {/* Drawer Signout Button & Branding */}
+            <div className="pt-4 border-t border-slate-100 dark:border-white/10 mt-6 space-y-3">
               <button
                 onClick={onLogout}
                 className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 py-2.5 text-xs font-bold text-red-600 hover:bg-red-100 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400 transition cursor-pointer"
@@ -536,6 +569,19 @@ export function AppShell({
                 <LogOut className="h-4 w-4" />
                 Sign Out
               </button>
+              <div className="text-center">
+                <a
+                  href="https://wa.me/233507904981"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors group"
+                >
+                  <span>Powered by</span>
+                  <span className="font-semibold text-slate-600 dark:text-slate-300 group-hover:text-emerald-600 dark:group-hover:text-emerald-400 underline underline-offset-2">
+                    Crazy Tech Enterprise
+                  </span>
+                </a>
+              </div>
             </div>
           </div>
         </div>

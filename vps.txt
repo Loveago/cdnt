@@ -1,7 +1,7 @@
 ================================================================================
      COMPLETE VPS DEPLOYMENT GUIDE: DUAL-DOMAIN ARCHITECTURE
-     • mycedinet.com      -> Management Portal, Admin, User Dashboards
-     • mycedinetstore.com -> Customer Storefronts, Orders & Tracking
+     • mycedinet.com  -> Management Portal, Admin, User Dashboards
+     • mycedishop.com -> Customer Storefronts, Orders & Tracking
 ================================================================================
 OS: Ubuntu 22.04 / 24.04 LTS or Debian 12
 VPS Setup: Single Next.js App (Port 3000) + PM2 + Local PostgreSQL + Nginx + Certbot
@@ -19,7 +19,7 @@ TABLE OF CONTENTS
 6. Step 5: Configure Production Environment (.env)
 7. Step 6: Database Setup & Next.js Production Build
 8. Step 7: Configure PM2 Process Manager
-9. Step 8: Configure Nginx for Both Domains (mycedinet.com & mycedinetstore.com)
+9. Step 8: Configure Nginx for Both Domains (mycedinet.com & mycedishop.com)
 10. Step 9: Issue Free SSL Certificates (Certbot HTTPS)
 11. Step 10: Configure Paystack Webhooks & Callbacks
 12. Step 11: Verification & Live Testing
@@ -30,7 +30,7 @@ TABLE OF CONTENTS
 1. DNS CONFIGURATION (BOTH DOMAINS POINT TO SAME VPS IP)
 ================================================================================
 A VPS has one public IP address. Both domains will point to that SAME IP.
-When a visitor visits mycedinetstore.com, Nginx proxies to Next.js with Host: mycedinetstore.com,
+When a visitor visits mycedishop.com, Nginx proxies to Next.js with Host: mycedishop.com,
 serving customer storefronts. When a user visits mycedinet.com, they access the portal.
 
 In your DNS manager (Namecheap, Cloudflare, GoDaddy, Hostinger, etc.):
@@ -41,7 +41,7 @@ For mycedinet.com:
 | A    | @           | <YOUR_VPS_IP>       | Auto / 1 min |
 | A    | www         | <YOUR_VPS_IP>       | Auto / 1 min |
 
-For mycedinetstore.com:
+For mycedishop.com:
 | Type | Host / Name | Value / Destination | TTL |
 | :--- | :--- | :--- | :--- |
 | A    | @           | <YOUR_VPS_IP>       | Auto / 1 min |
@@ -120,7 +120,7 @@ sudo mkdir -p /var/www
 cd /var/www
 
 # Clone repository
-git clone https://github.com/Loveago/mycedinet.git mycedinet
+git clone https://github.com/Loveago/cdnt.git mycedinet
 cd /var/www/mycedinet
 
 # Install dependencies
@@ -136,21 +136,20 @@ cat << 'EOF' > /var/www/mycedinet/.env
 DATABASE_URL="postgresql://mycedinet_user:Loverboy888112!@localhost:5432/mycedinet_db?schema=public"
 
 # Auth Session Secret (Generate with: openssl rand -base64 32)
-AUTH_SECRET="CHANGE_THIS_TO_A_VERY_LONG_RANDOM_SECRET_KEY_123456"
+AUTH_SECRET="CHANGE_THIS_TO_A_VERY_dfhdsd4665@@45drggdrLONG_RANDOM_SECRET_KEY_123456"
 
 # Multi-Domain Platform Architecture
 MAIN_DOMAIN="mycedinet.com"
 NEXT_PUBLIC_MAIN_DOMAIN="mycedinet.com"
-STOREFRONT_DOMAIN="mycedinetstore.com"
-NEXT_PUBLIC_STOREFRONT_DOMAIN="mycedinetstore.com"
+STOREFRONT_DOMAIN="mycedishop.com"
+NEXT_PUBLIC_STOREFRONT_DOMAIN="mycedishop.com"
 
 # Paystack (Ghana MoMo Top-ups & Storefront Checkout)
 # Get keys at: https://dashboard.paystack.com/#/settings/developers
-PAYSTACK_SECRET_KEY="sk_live_replace_with_your_paystack_secret_key"
 
 # Initial Admin Credentials (used during seed)
 ADMIN_EMAIL="admin@mycedinet.com"
-ADMIN_PASSWORD="AdminPassword123!"
+ADMIN_PASSWORD="Crazyfrank121@"
 ADMIN_NAME="Super Admin"
 
 # Node Environment
@@ -219,7 +218,7 @@ curl -I http://127.0.0.1:3000
 ================================================================================
 9. STEP 8: CONFIGURE NGINX FOR BOTH DOMAINS
 ================================================================================
-We create two modular Nginx site configs: one for mycedinet.com and one for mycedinetstore.com.
+We create two modular Nginx site configs: one for mycedinet.com and one for mycedishop.com.
 
 --- [ 8A: NGINX CONFIG FOR MYCEDINET.COM ] ---
 cat << 'EOF' > /etc/nginx/sites-available/mycedinet.com
@@ -259,12 +258,12 @@ server {
 }
 EOF
 
---- [ 8B: NGINX CONFIG FOR MYCEDINETSTORE.COM ] ---
-cat << 'EOF' > /etc/nginx/sites-available/mycedinetstore.com
+--- [ 8B: NGINX CONFIG FOR MYCEDISHOP.COM ] ---
+cat << 'EOF' > /etc/nginx/sites-available/mycedishop.com
 server {
     listen 80;
     listen [::]:80;
-    server_name mycedinetstore.com www.mycedinetstore.com;
+    server_name mycedishop.com www.mycedishop.com;
 
     client_max_body_size 250M;
 
@@ -299,7 +298,7 @@ EOF
 
 --- [ 8C: ENABLE SITES & TEST NGINX ] ---
 sudo ln -sf /etc/nginx/sites-available/mycedinet.com /etc/nginx/sites-enabled/
-sudo ln -sf /etc/nginx/sites-available/mycedinetstore.com /etc/nginx/sites-enabled/
+sudo ln -sf /etc/nginx/sites-available/mycedishop.com /etc/nginx/sites-enabled/
 sudo rm -f /etc/nginx/sites-enabled/default
 
 # Test Nginx syntax
@@ -314,7 +313,7 @@ sudo systemctl reload nginx
 ================================================================================
 Run Certbot to secure both domains and their www subdomains in one command:
 
-sudo certbot --nginx -d mycedinet.com -d www.mycedinet.com -d mycedinetstore.com -d www.mycedinetstore.com --non-interactive --agree-tos -m admin@mycedinet.com --redirect
+sudo certbot --nginx -d mycedinet.com -d www.mycedinet.com -d mycedishop.com -d www.mycedishop.com --non-interactive --agree-tos -m admin@mycedinet.com --redirect
 
 # Test automatic SSL certificate renewal
 sudo certbot renew --dry-run
@@ -331,7 +330,7 @@ In Paystack Dashboard -> Settings -> API Keys & Webhooks
    (Handles user wallet top-up confirmations)
 
 2. Storefront Webhook URL (if using second webhook or primary):
-   https://mycedinetstore.com/api/store/paystack/callback
+   https://mycedishop.com/api/store/paystack/callback
    (Handles customer reseller order payments)
 
 3. Default Callback URL:
@@ -344,15 +343,15 @@ In Paystack Dashboard -> Settings -> API Keys & Webhooks
 Run these curl checks directly on the VPS to verify routing:
 
 # 1. Test storefront root (Inquisitive Visitor homepage)
-curl -I -H "Host: mycedinetstore.com" http://127.0.0.1:3000/
+curl -I -H "Host: mycedishop.com" http://127.0.0.1:3000/
 # Expected: HTTP 200
 
 # 2. Test security redirect (blocks admin on storefront domain)
-curl -I -H "Host: mycedinetstore.com" http://127.0.0.1:3000/admin
+curl -I -H "Host: mycedishop.com" http://127.0.0.1:3000/admin
 # Expected: HTTP 307/308 Redirect to https://mycedinet.com/login
 
 # 3. Test clean store routing
-curl -I -H "Host: mycedinetstore.com" http://127.0.0.1:3000/loveagostore
+curl -I -H "Host: mycedishop.com" http://127.0.0.1:3000/loveagostore
 # Expected: HTTP 200
 
 # 4. Test main platform
@@ -373,6 +372,7 @@ npm run db:push && \
 NODE_OPTIONS="--max-old-space-size=2048" npm run build && \
 pm2 reload all
 
+ssh -i ~/frankkey ubuntu@57.129.163.42
 Helpful maintenance commands:
 • Check PM2 status:     pm2 status
 • View live app logs:   pm2 logs mycedinet
