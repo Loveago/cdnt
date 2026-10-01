@@ -267,7 +267,7 @@ export default function AdminUsersPage() {
       />
 
       {/* Quick Filter Status Tabs */}
-      <div className="flex flex-wrap items-center gap-2 border-b border-slate-200/80 pb-3 dark:border-slate-800">
+      <div className="flex items-center gap-2 border-b border-slate-200/80 pb-3 dark:border-slate-800 overflow-x-auto whitespace-nowrap">
         <button
           type="button"
           onClick={() => {
@@ -275,7 +275,7 @@ export default function AdminUsersPage() {
             setBalance("");
             setPage(1);
           }}
-          className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${
+          className={`shrink-0 inline-flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${
             !status && !balance
               ? "bg-brand-600 text-white shadow-sm"
               : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
@@ -294,7 +294,7 @@ export default function AdminUsersPage() {
             setBalance("");
             setPage(1);
           }}
-          className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${
+          className={`shrink-0 inline-flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${
             status === "PENDING_PAYMENT"
               ? "bg-amber-500 text-white shadow-sm"
               : "bg-amber-50 text-amber-800 border border-amber-200/80 hover:bg-amber-100 dark:bg-amber-950/30 dark:text-amber-400 dark:border-amber-800/40"
@@ -316,7 +316,7 @@ export default function AdminUsersPage() {
             setStatus("");
             setPage(1);
           }}
-          className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${
+          className={`shrink-0 inline-flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${
             balance === "zero"
               ? "bg-indigo-600 text-white shadow-sm"
               : "bg-indigo-50 text-indigo-800 border border-indigo-200/80 hover:bg-indigo-100 dark:bg-indigo-950/30 dark:text-indigo-400 dark:border-indigo-800/40"
@@ -335,7 +335,7 @@ export default function AdminUsersPage() {
             setBalance("");
             setPage(1);
           }}
-          className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${
+          className={`shrink-0 inline-flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${
             status === "FROZEN"
               ? "bg-cyan-600 text-white shadow-sm"
               : "bg-cyan-50 text-cyan-800 border border-cyan-200/80 hover:bg-cyan-100 dark:bg-cyan-950/30 dark:text-cyan-400 dark:border-cyan-800/40"
@@ -357,7 +357,7 @@ export default function AdminUsersPage() {
             setBalance("");
             setPage(1);
           }}
-          className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${
+          className={`shrink-0 inline-flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${
             status === "ACTIVE"
               ? "bg-emerald-600 text-white shadow-sm"
               : "bg-emerald-50 text-emerald-800 border border-emerald-200/80 hover:bg-emerald-100 dark:bg-emerald-950/30 dark:text-emerald-400 dark:border-emerald-800/40"
@@ -378,7 +378,7 @@ export default function AdminUsersPage() {
             setBalance("");
             setPage(1);
           }}
-          className={`inline-flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${
+          className={`shrink-0 inline-flex items-center gap-1.5 rounded-xl px-3.5 py-1.5 text-xs font-semibold transition ${
             registrationPayment === "paid"
               ? "bg-purple-600 text-white shadow-sm"
               : "bg-purple-50 text-purple-800 border border-purple-200/80 hover:bg-purple-100 dark:bg-purple-950/30 dark:text-purple-400 dark:border-purple-800/40"
@@ -403,7 +403,7 @@ export default function AdminUsersPage() {
             setQ(e.target.value);
             setPage(1);
           }}
-          className="max-w-xs h-9 text-xs"
+          className="w-full sm:max-w-xs h-9 text-xs"
         />
 
         {/* Status Filter */}
@@ -531,7 +531,7 @@ export default function AdminUsersPage() {
 
       {/* Floating Bulk Actions Bar */}
       {selectedIds.length > 0 && (
-        <div className="sticky top-4 z-30 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand-200 bg-white/95 p-3 shadow-xl backdrop-blur-md dark:border-brand-500/30 dark:bg-[#0f172a]/95 animate-in fade-in slide-in-from-top-2">
+        <div className="sticky top-4 z-20 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-brand-200 bg-white/95 p-3 shadow-xl backdrop-blur-md dark:border-brand-500/30 dark:bg-[#0f172a]/95 animate-in fade-in slide-in-from-top-2">
           <div className="flex items-center gap-2">
             <span className="flex h-7 min-w-7 items-center justify-center rounded-full bg-brand-600 px-2 text-xs font-bold text-white">
               {selectedIds.length}

@@ -63,19 +63,19 @@ export function StorefrontOrdersTable({
         />
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[950px] text-sm text-left">
             <thead>
-              <tr className="border-b border-slate-100 text-left text-xs text-slate-500 dark:border-slate-800">
-                <th className="px-4 py-3 font-medium">Reference</th>
-                <th className="px-4 py-3 font-medium">Store</th>
-                <th className="px-4 py-3 font-medium">Customer Phone</th>
-                <th className="px-4 py-3 font-medium">Network</th>
-                <th className="px-4 py-3 font-medium">Bundle</th>
-                <th className="px-4 py-3 font-medium">Amount</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">Commission</th>
-                <th className="px-4 py-3 font-medium">Order ID</th>
-                <th className="px-4 py-3 font-medium">Date</th>
+              <tr className="border-b border-slate-100 text-xs text-slate-500 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
+                <th className="px-4 py-3 font-semibold whitespace-nowrap">Reference</th>
+                <th className="px-4 py-3 font-semibold whitespace-nowrap">Store</th>
+                <th className="px-4 py-3 font-semibold whitespace-nowrap">Customer Phone</th>
+                <th className="px-4 py-3 font-semibold whitespace-nowrap">Network</th>
+                <th className="px-4 py-3 font-semibold whitespace-nowrap">Bundle</th>
+                <th className="px-4 py-3 font-semibold whitespace-nowrap">Amount</th>
+                <th className="px-4 py-3 font-semibold whitespace-nowrap">Status</th>
+                <th className="px-4 py-3 font-semibold whitespace-nowrap">Commission</th>
+                <th className="px-4 py-3 font-semibold whitespace-nowrap">Order ID</th>
+                <th className="px-4 py-3 font-semibold whitespace-nowrap">Date</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">

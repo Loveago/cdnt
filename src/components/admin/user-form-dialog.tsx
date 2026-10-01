@@ -150,7 +150,7 @@ export function UserFormDialog({
             placeholder={user ? "••••••••" : "min 8 characters"}
           />
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label>Role</Label>
             <Select value={role} onChange={(e) => setRole(e.target.value)}>
@@ -169,7 +169,7 @@ export function UserFormDialog({
             </Select>
           </div>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label>Wallet balance (GHS)</Label>
             <Input type="number" min="0" step="0.01" value={balance} onChange={(e) => setBalance(e.target.value)} />
@@ -218,9 +218,14 @@ export function UserFormDialog({
           </div>
         )}
 
-        <Button className="w-full" onClick={save} disabled={saving}>
-          {saving && <Spinner />} {user ? "Save changes" : "Create user"}
-        </Button>
+        <div className="flex items-center gap-2 pt-2 border-t border-slate-100 dark:border-white/5">
+          <Button type="button" variant="outline" className="flex-1" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button className="flex-1 bg-brand-600 hover:bg-brand-700 text-white font-bold" onClick={save} disabled={saving}>
+            {saving && <Spinner />} {user ? "Save changes" : "Create user"}
+          </Button>
+        </div>
       </div>
     </Dialog>
   );

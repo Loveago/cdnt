@@ -42,11 +42,11 @@ export function ApiOrdersTable({
         />
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-sm">
+          <table className="w-full min-w-[1000px] text-sm text-left">
             <thead>
-              <tr className="border-b border-slate-100 text-left text-xs text-slate-500 dark:border-slate-800">
+              <tr className="border-b border-slate-100 text-xs text-slate-500 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30">
                 {onToggleSelectRow && (
-                  <th className="px-3 py-3 w-8">
+                  <th className="px-3 py-3 w-8 whitespace-nowrap">
                     <input
                       type="checkbox"
                       checked={allSelected}
@@ -55,16 +55,16 @@ export function ApiOrdersTable({
                     />
                   </th>
                 )}
-                <th className="px-4 py-3 font-medium">API Order</th>
-                <th className="px-4 py-3 font-medium">Client Reference</th>
-                <th className="px-4 py-3 font-medium">API Key / App</th>
-                <th className="px-4 py-3 font-medium">Phone Number</th>
-                <th className="px-4 py-3 font-medium">Network</th>
-                <th className="px-4 py-3 font-medium">Bundle</th>
-                <th className="px-4 py-3 font-medium">Amount</th>
-                <th className="px-4 py-3 font-medium">Status</th>
-                <th className="px-4 py-3 font-medium">User</th>
-                {onChangeStatus && <th className="px-4 py-3 font-medium">Quick Status</th>}
+                <th className="px-4 py-3 font-semibold whitespace-nowrap">API Order</th>
+                <th className="px-4 py-3 font-semibold whitespace-nowrap">Client Reference</th>
+                <th className="px-4 py-3 font-semibold whitespace-nowrap">API Key / App</th>
+                <th className="px-4 py-3 font-semibold whitespace-nowrap">Phone Number</th>
+                <th className="px-4 py-3 font-semibold whitespace-nowrap">Network</th>
+                <th className="px-4 py-3 font-semibold whitespace-nowrap">Bundle</th>
+                <th className="px-4 py-3 font-semibold whitespace-nowrap">Amount</th>
+                <th className="px-4 py-3 font-semibold whitespace-nowrap">Status</th>
+                <th className="px-4 py-3 font-semibold whitespace-nowrap">User</th>
+                {onChangeStatus && <th className="px-4 py-3 font-semibold whitespace-nowrap">Quick Status</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
