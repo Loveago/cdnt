@@ -100,17 +100,25 @@ export default function NotReceivedPage() {
   ];
 
   return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center gap-3">
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-600/25">
-          <FileWarning className="h-5 w-5" />
-        </span>
-        <div>
-          <h1 className="text-lg font-bold tracking-tight">My Not Received Reports</h1>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Track the status of data reported as not received
-          </p>
+    <div className="space-y-6">
+      {/* Hero Header Banner */}
+      <div className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white/90 p-5 sm:p-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Delivery Protection &amp; Resolution
+              </span>
+              <span className="text-[10px] font-bold text-slate-400">· 24h Inquiry Window</span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+              Order Reports
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-2xl leading-relaxed">
+              Track filed delivery inquiries, monitor investigation status, and review admin resolution proof or refunds.
+            </p>
+          </div>
         </div>
       </div>
 
@@ -119,23 +127,23 @@ export default function NotReceivedPage() {
         {tiles.map((t) => (
           <div
             key={t.label}
-            className="flex items-center gap-3 rounded-xl border border-slate-200/70 bg-white px-4 py-3 shadow-sm dark:border-white/5 dark:bg-[#0d1526]"
+            className="flex items-center gap-3 rounded-2xl border border-slate-200/80 bg-white p-3.5 shadow-sm transition hover:shadow-md dark:border-white/10 dark:bg-[#0b1322]/90"
           >
             <span
-              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 dark:bg-white/5 ${t.cls}`}
+              className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-100 dark:bg-white/5 ${t.cls}`}
             >
-              <t.icon className="h-4 w-4" />
+              <t.icon className="h-4.5 w-4.5" />
             </span>
             <div className="min-w-0">
-              <p className="text-base font-bold leading-tight">{t.value}</p>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">{t.label}</p>
+              <p className="text-base font-black tracking-tight text-slate-900 dark:text-white">{t.value}</p>
+              <p className="text-[11px] font-semibold text-slate-500 dark:text-slate-400 truncate">{t.label}</p>
             </div>
           </div>
         ))}
       </div>
 
       {/* Filters + table */}
-      <div className="rounded-2xl border border-slate-200/70 bg-white shadow-sm dark:border-white/5 dark:bg-[#0d1526]">
+      <div className="rounded-3xl border border-slate-200/90 bg-white/90 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90 overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-slate-100 px-5 py-4 dark:border-white/5 sm:flex-row sm:items-center">
           <div className="relative flex-1 sm:max-w-xs">
             <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />

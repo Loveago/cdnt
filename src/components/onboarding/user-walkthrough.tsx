@@ -65,7 +65,7 @@ const TOUR_STEPS: TourStep[] = [
   {
     id: "orders",
     badge: "Step 3 of 6 • Live Tracking",
-    title: "Track Sent Orders in Real-Time",
+    title: "Track Orders in Real-Time",
     icon: ClipboardList,
     iconColor: "text-violet-500",
     iconBg: "bg-violet-500/10 dark:bg-violet-500/20",
@@ -73,20 +73,20 @@ const TOUR_STEPS: TourStep[] = [
       "Monitor all your dispatched orders in live view. Check pending, processing, and completed batches, search by phone number, filter by date, download official receipts, and retry failed dispatches.",
     tip: "The status indicators update automatically without needing to reload the page.",
     targetHref: "/dashboard/orders",
-    targetLabel: "View Sent Orders",
+    targetLabel: "View Orders",
   },
   {
     id: "not-received",
     badge: "Step 4 of 6 • Protection",
-    title: "Report 'Not Received' Issues",
+    title: "Order Reports & Delivery Inquiries",
     icon: FileWarning,
     iconColor: "text-amber-500",
     iconBg: "bg-amber-500/10 dark:bg-amber-500/20",
     description:
-      "If a customer didn't receive their bundle within 24 hours of completion, easily submit a 'Not Received' report here. Our support team investigates and responds with proof of delivery or a refund.",
+      "If a customer didn't receive their bundle within 24 hours of completion, easily submit a report here. Our support team investigates and responds with proof of delivery or a refund.",
     tip: "You can monitor admin responses and resolution status directly inside the report.",
     targetHref: "/dashboard/not-received",
-    targetLabel: "View Not Received Reports",
+    targetLabel: "View Order Reports",
   },
   {
     id: "mtn-api",
@@ -298,7 +298,7 @@ export function UserWalkthrough({ userName }: { userName?: string }) {
                 </div>
                 <div>
                   <div className="font-bold text-slate-900 dark:text-white">Buyer Protection</div>
-                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Not Received flow</div>
+                  <div className="text-[11px] text-slate-500 dark:text-slate-400">Order Reports flow</div>
                 </div>
               </div>
             </div>

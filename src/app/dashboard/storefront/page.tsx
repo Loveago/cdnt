@@ -94,47 +94,54 @@ export default async function StorefrontOverviewPage({
   const isUserPaused = storefront.status === "ENABLED" && !storefront.isActive;
 
   return (
-    <div className="space-y-6 p-4 sm:p-6">
-      {/* Store hero */}
-      <header className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-[#0d1526]">
-        <div className="flex flex-wrap items-start justify-between gap-4 p-5">
+    <div className="space-y-6">
+      {/* Store Hero Banner */}
+      <div className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white/90 p-5 sm:p-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-5">
           <div className="flex items-start gap-4">
-            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-600/20">
+            <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-600/25">
               <Store className="h-6 w-6" />
             </span>
-            <div>
+            <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-xl font-bold text-slate-900 dark:text-white">{storefront.name}</h1>
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                  Merchant Storefront Engine
+                </span>
                 <span
-                  className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                  className={`rounded-full px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider ${
                     isLive
-                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/15 dark:text-emerald-300"
+                      ? "bg-emerald-500/15 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 border border-emerald-500/30"
                       : isUserPaused
-                      ? "bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-300"
-                      : "bg-red-100 text-red-700 dark:bg-red-500/15 dark:text-red-300"
+                      ? "bg-amber-500/15 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300 border border-amber-500/30"
+                      : "bg-red-500/15 text-red-700 dark:bg-red-500/20 dark:text-red-300 border border-red-500/30"
                   }`}
                 >
-                  {isLive ? "Live" : isUserPaused ? "Paused" : storefront.status}
+                  {isLive ? "Live & Accepting Orders" : isUserPaused ? "Store Paused" : storefront.status}
                 </span>
               </div>
-              <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-                Public address:{" "}
+              <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                {storefront.name}
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400">
+                Public storefront:{" "}
                 <a
                   href={storeUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 font-semibold text-emerald-600 hover:underline dark:text-emerald-400"
+                  className="inline-flex items-center gap-1 font-bold text-emerald-600 hover:underline dark:text-emerald-400"
                 >
                   {storefrontDomain}/{storefront.slug}
                   <ExternalLink className="h-3 w-3" />
                 </a>
               </p>
-              <div className="mt-3">
+              <div className="pt-2">
                 <CopyShareButtons url={storeUrl} storeName={storefront.name} />
               </div>
             </div>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+
+          <div className="flex flex-wrap items-center gap-2.5 self-start lg:self-center">
             <StoreStatusToggle
               initialActive={storefront.isActive}
               storeStatus={storefront.status}
@@ -142,65 +149,70 @@ export default async function StorefrontOverviewPage({
             />
             <Link
               href="/dashboard/storefront/products"
-              className="rounded-lg bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:from-emerald-500 hover:to-teal-500"
+              className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-4 py-2 text-xs font-bold text-white shadow-md shadow-emerald-600/20 hover:from-emerald-500 hover:to-teal-500 transition"
             >
-              Manage products
+              Manage Products
             </Link>
             <Link
               href="/dashboard/storefront/wallet"
-              className="rounded-lg border border-slate-300 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-white/5"
+              className="rounded-xl border border-slate-200/80 bg-slate-50/80 px-4 py-2 text-xs font-bold text-slate-700 hover:bg-slate-100 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08] transition"
             >
-              Wallet
+              Payout Wallet
             </Link>
           </div>
         </div>
-      </header>
+      </div>
 
       {isUserPaused && (
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs font-medium text-amber-800 dark:text-amber-200">
           <div className="flex items-center gap-3">
             <PauseCircle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
             <p>
-              <strong>Your storefront is currently paused.</strong> Visitors to your store link cannot purchase bundles until you re-enable it.
+              <strong>Your storefront is currently paused.</strong> Buyers visiting your storefront link will see a maintenance notice until you unpause.
             </p>
           </div>
         </div>
       )}
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
         {stats.map((s) => (
           <div
             key={s.label}
-            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-[#0d1526]"
+            className="rounded-3xl border border-slate-200/90 bg-white/90 p-4 sm:p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90 flex flex-col justify-between"
           >
-            <span className={`inline-flex h-9 w-9 items-center justify-center rounded-xl ${s.accent}`}>
-              <s.icon className="h-5 w-5" />
-            </span>
-            <p className="mt-3 text-xs font-medium uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              {s.label}
-            </p>
-            <p className="mt-0.5 text-lg font-bold text-slate-900 dark:text-white">{s.value}</p>
-            <p className="mt-0.5 text-xs text-slate-400">{s.hint}</p>
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                {s.label}
+              </p>
+              <span className={`inline-flex h-8 w-8 items-center justify-center rounded-xl ${s.accent}`}>
+                <s.icon className="h-4 w-4" />
+              </span>
+            </div>
+            <div className="mt-3">
+              <p className="font-mono text-xl sm:text-2xl font-black tabular-nums text-slate-900 dark:text-white">
+                {s.value}
+              </p>
+              <p className="mt-1 text-[11px] font-medium text-slate-400">{s.hint}</p>
+            </div>
           </div>
         ))}
       </div>
 
       {pendingWithdrawal && (
-        <div className="flex items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-800 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200">
-          <Clock className="h-5 w-5 shrink-0" />
+        <div className="flex items-center gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs font-semibold text-amber-800 dark:text-amber-200">
+          <Clock className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
           <p>
-            A withdrawal of <strong>GHS {fromPesewas(pendingWithdrawal.amount).toFixed(2)}</strong> is
-            awaiting admin review.
+            A pending withdrawal of <strong>GHS {fromPesewas(pendingWithdrawal.amount).toFixed(2)}</strong> is currently being reviewed for payout.
           </p>
         </div>
       )}
 
       {/* Storefront orders */}
-      <section className="space-y-2">
-        <div className="flex items-center justify-between">
-          <h2 className="text-sm font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Storefront orders ({totalStoreOrders})
+      <section className="space-y-3">
+        <div className="flex items-center justify-between px-1">
+          <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            Storefront Orders ({totalStoreOrders})
           </h2>
         </div>
         <RecentOrdersView
@@ -229,25 +241,27 @@ export default async function StorefrontOverviewPage({
       </section>
 
       {/* Quick actions */}
-      <section>
-        <h2 className="mb-2 text-sm font-bold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-          Quick actions
+      <section className="space-y-3">
+        <h2 className="px-1 text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+          Merchant Actions
         </h2>
         <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           {[
-            { href: "/dashboard/storefront/products", label: "Set prices", desc: "Manage your bundle listings", icon: Package, external: false },
-            { href: "/dashboard/storefront/wallet", label: "Withdraw", desc: "Cash out commissions via MoMo", icon: Wallet, external: false },
-            { href: "/dashboard/storefront/settings", label: "Store settings", desc: "Name, contact & payout", icon: Settings, external: false },
-            { href: storeUrl, label: "View store", desc: "See what buyers see", icon: ExternalLink, external: true },
+            { href: "/dashboard/storefront/products", label: "Retail Pricing", desc: "Configure bundle markups", icon: Package, external: false },
+            { href: "/dashboard/storefront/wallet", label: "Cash Out", desc: "Withdraw earnings via MoMo", icon: Wallet, external: false },
+            { href: "/dashboard/storefront/settings", label: "Store Customization", desc: "Branding, contact & payout", icon: Settings, external: false },
+            { href: storeUrl, label: "View Public Store", desc: "Live customer storefront view", icon: ExternalLink, external: true },
           ].map((a) => (
             <Link
               key={a.label}
               href={a.href}
               {...(a.external ? { target: "_blank" } : {})}
-              className="rounded-2xl border border-slate-200 bg-white p-4 transition-colors hover:border-emerald-300 hover:bg-emerald-50/50 dark:border-slate-800 dark:bg-[#0d1526] dark:hover:border-emerald-500/40 dark:hover:bg-emerald-500/5"
+              className="rounded-3xl border border-slate-200/90 bg-white/90 p-4 sm:p-5 transition hover:border-emerald-500/40 hover:shadow-md dark:border-white/10 dark:bg-[#0b1322]/90 dark:hover:border-emerald-500/30 shadow-sm"
             >
-              <a.icon className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
-              <p className="mt-2 text-sm font-bold text-slate-900 dark:text-white">{a.label}</p>
+              <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400">
+                <a.icon className="h-5 w-5" />
+              </div>
+              <p className="mt-3 text-sm font-bold text-slate-900 dark:text-white">{a.label}</p>
               <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{a.desc}</p>
             </Link>
           ))}

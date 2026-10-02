@@ -59,7 +59,7 @@ export default async function StorefrontLayout({
   }
 
   return (
-    <div>
+    <div className="space-y-6">
       <StorefrontSubnav />
       {children}
     </div>

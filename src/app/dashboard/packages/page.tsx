@@ -74,48 +74,57 @@ export default async function PackagesPage() {
     .filter((g) => g.packages.length > 0);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6">
-      {/* Centered page header, as per the reference design */}
-      <div className="flex flex-col items-center gap-2 pt-2 text-center">
-        <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-600/30">
-          <Package className="h-6 w-6" />
-        </span>
-        <h1 className="text-xl font-bold tracking-tight sm:text-2xl">Available Packages</h1>
-        <p className="max-w-md text-sm text-slate-500 dark:text-slate-400">
-          View your assigned pricing profile and available data allocation options across all 3 networks.
-        </p>
+    <div className="space-y-6">
+      {/* Hero Header Banner */}
+      <div className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white/90 p-5 sm:p-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Data Bundles &amp; Pricing Tiers
+              </span>
+              <span className="text-[10px] font-bold text-slate-400">· Multi-Carrier Catalog</span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+              Packages &amp; Rates
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-2xl leading-relaxed">
+              Explore your active wholesale pricing tier and package availability across MTN, Telecel, and AT networks.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-slate-50/80 px-3.5 py-2 text-xs dark:border-white/5 dark:bg-white/[0.04]">
+            <ShieldCheck className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <div>
+              <p className="text-[10px] font-bold uppercase text-slate-400">Your Tier Profile</p>
+              <p className="font-black text-slate-900 dark:text-white">{profileName}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Assigned pricing profile */}
-      <div className="overflow-hidden rounded-2xl border border-brand-200/70 bg-gradient-to-br from-brand-50 via-white to-teal-50 shadow-sm dark:border-brand-500/30 dark:from-brand-500/15 dark:via-[#0d1526] dark:to-teal-500/15">
-        <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+      <div className="overflow-hidden rounded-3xl border border-slate-200/90 bg-white/90 p-5 sm:p-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-brand-500 dark:text-brand-400">
-              Your Pricing Profile
+            <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400">
+              Assigned Pricing Profile
             </p>
-            <h2 className="mt-1 truncate text-lg font-bold">{profileName}</h2>
-            <div className="mt-2.5 flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Active
+            <h2 className="mt-1 truncate text-lg font-black text-slate-900 dark:text-white tracking-tight">{profileName} Tier</h2>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-1 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Active Tier
               </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/10 px-2.5 py-1 text-[11px] font-semibold text-blue-600 dark:text-blue-400">
-                <Layers className="h-3 w-3" /> Tiered Pricing
+              <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-500/10 border border-blue-500/20 px-2.5 py-1 text-[11px] font-bold text-blue-700 dark:text-blue-300">
+                <Layers className="h-3 w-3" /> Tiered Wholesale
               </span>
-              <span className="inline-flex items-center rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-semibold text-slate-600 shadow-sm dark:bg-white/5 dark:text-slate-300">
-                Networks (MTN · Telecel · AT iShare · AT Big Time)
+              <span className="inline-flex items-center rounded-full bg-slate-100 border border-slate-200/80 px-2.5 py-1 text-[11px] font-semibold text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+                All Networks (MTN · Telecel · AT)
               </span>
-              <span className="inline-flex items-center rounded-full bg-white/70 px-2.5 py-1 text-[11px] font-semibold text-slate-600 shadow-sm dark:bg-white/5 dark:text-slate-300">
-                {packages.length} Bundles
+              <span className="inline-flex items-center rounded-full bg-slate-100 border border-slate-200/80 px-2.5 py-1 text-[11px] font-semibold text-slate-700 dark:border-white/10 dark:bg-white/5 dark:text-slate-300">
+                {packages.length} Active Bundles
               </span>
-            </div>
-          </div>
-          <div className="flex shrink-0 items-center gap-2.5 rounded-xl border border-brand-200/70 bg-white/80 px-4 py-3 dark:border-white/10 dark:bg-white/5">
-            <ShieldCheck className="h-5 w-5 shrink-0 text-emerald-500" />
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                Profile
-              </p>
-              <p className="text-sm font-bold">{profileName}</p>
             </div>
           </div>
         </div>
@@ -125,15 +134,15 @@ export default async function PackagesPage() {
       <NetworkPackageGrid groups={groups} />
 
       {/* Pricing structure by network */}
-      <div className="rounded-2xl border border-slate-200/70 bg-white shadow-sm dark:border-white/5 dark:bg-[#0d1526]">
+      <div className="rounded-3xl border border-slate-200/90 bg-white/90 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90 overflow-hidden">
         <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4 dark:border-white/5">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-500">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
             <BadgeCheck className="h-5 w-5" />
           </span>
           <div>
-            <h3 className="text-sm font-bold">Pricing Structure by Network</h3>
+            <h3 className="text-sm font-bold text-slate-900 dark:text-white">Pricing Structure by Network</h3>
             <p className="text-xs text-slate-500 dark:text-slate-400">
-              Each network has distinct bundle allocations and rates:
+              Each network has distinct bundle allocations and wholesale rates:
             </p>
           </div>
         </div>

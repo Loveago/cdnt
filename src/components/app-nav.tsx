@@ -89,8 +89,8 @@ export function resolveNavIcon(name: NavIconName | undefined): React.ComponentTy
 export const userNav: NavItem[] = [
   { href: "/dashboard/buy-now", label: "Buy Now", icon: ShoppingBag },
   { href: "/dashboard/send", label: "Bulk Order", icon: Send },
-  { href: "/dashboard/orders", label: "Sent Orders", icon: ClipboardList, badge: true },
-  { href: "/dashboard/not-received", label: "My Not Received", icon: FileWarning },
+  { href: "/dashboard/orders", label: "Orders", icon: ClipboardList, badge: true },
+  { href: "/dashboard/not-received", label: "Order Reports", icon: FileWarning },
   { href: "/dashboard/billing", label: "Billing", icon: Receipt },
   { href: "/dashboard/transactions", label: "Transactions", icon: Wallet },
   { href: "/dashboard/mtn-verification", label: "MTN Verification", icon: CheckCircle2 },

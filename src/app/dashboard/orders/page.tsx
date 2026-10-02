@@ -314,7 +314,7 @@ export default function OrdersPage() {
   return (
     <div className="space-y-5">
       <PageHeader
-        title="My Sent Orders"
+        title="Orders"
         description="View your order batches or search individual phone numbers directly"
       />
 

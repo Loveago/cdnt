@@ -86,7 +86,14 @@ export function ClaimHistory() {
 
   return (
     <div className="space-y-4">
-      <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-white/5 dark:bg-[#0d1526]">
+      <div className="overflow-hidden rounded-3xl border border-slate-200/90 bg-white/90 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90">
+        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-white/5">
+          <div>
+            <h3 className="text-base font-bold text-slate-900 dark:text-white">MoMo Claim Records</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">Past claims submitted via Transaction ID</p>
+          </div>
+          <span className="text-xs font-semibold text-slate-400">{total} record(s)</span>
+        </div>
         <div className="divide-y divide-slate-100 dark:divide-white/5">
           {claims.map((c) => (
             <div
@@ -94,30 +101,32 @@ export function ClaimHistory() {
               onClick={() => setSelectedClaim(c)}
               className="flex cursor-pointer items-center justify-between gap-3 p-4 transition-colors hover:bg-slate-50 dark:hover:bg-white/[0.02]"
             >
-              <div className="flex items-center gap-3 min-w-0">
-                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 dark:bg-brand-500/10 dark:text-brand-400">
-                  <Smartphone className="h-4 w-4" />
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                  <Smartphone className="h-4.5 w-4.5" />
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
                     <p className="font-mono text-sm font-bold text-slate-900 dark:text-white">
                       {c.transactionReference}
                     </p>
-                    <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                    <span className="rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600 dark:bg-white/10 dark:text-slate-300">
                       {c.network}
                     </span>
                   </div>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                     {formatDateTime(c.createdAt)}
                   </p>
                 </div>
               </div>
 
               <div className="text-right">
-                <p className="text-sm font-bold text-slate-900 dark:text-white">
+                <p className="font-mono text-sm font-black text-slate-900 dark:text-white">
                   {formatGHS(c.claimedAmount)}
                 </p>
-                {claimBadge(c.status)}
+                <div className="mt-1">
+                  {claimBadge(c.status)}
+                </div>
               </div>
             </div>
           ))}

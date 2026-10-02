@@ -156,10 +156,10 @@ function TransactionCard({ tx }: { tx: Transaction }) {
     (tx.reference ? `Ref: ${tx.reference}` : cfg.label);
 
   return (
-    <div className="group relative flex gap-3 rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm transition-all duration-200 hover:border-slate-300 hover:shadow-md dark:border-slate-700/60 dark:bg-slate-800/60 dark:hover:border-slate-600 sm:gap-4">
+    <div className="group relative flex gap-3.5 rounded-2xl border border-slate-200/90 bg-white/90 p-4 shadow-sm transition-all duration-200 hover:border-emerald-500/40 hover:shadow-md dark:border-white/10 dark:bg-[#0b1322]/90 dark:hover:border-emerald-500/30 sm:gap-4">
       {/* Type icon */}
       <div
-        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${cfg.bgClass} transition-transform duration-200 group-hover:scale-110`}
+        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl ${cfg.bgClass} transition-transform duration-200 group-hover:scale-105`}
       >
         <Icon className={`h-5 w-5 ${cfg.colorClass}`} />
       </div>
@@ -169,7 +169,7 @@ function TransactionCard({ tx }: { tx: Transaction }) {
         <div className="flex items-start justify-between gap-2">
           {/* Left: type label + description */}
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">
+            <p className="text-sm font-bold text-slate-900 dark:text-white">
               {cfg.label}
             </p>
             <p className="mt-0.5 truncate text-xs text-slate-500 dark:text-slate-400">
@@ -180,7 +180,7 @@ function TransactionCard({ tx }: { tx: Transaction }) {
           {/* Right: amount */}
           <div className="text-right">
             <p
-              className={`text-base font-bold tabular-nums ${
+              className={`font-mono text-base font-black tabular-nums ${
                 cfg.isCredit
                   ? "text-emerald-600 dark:text-emerald-400"
                   : "text-rose-600 dark:text-rose-400"
@@ -194,21 +194,21 @@ function TransactionCard({ tx }: { tx: Transaction }) {
 
         {/* Balance before → after strip */}
         {isApproved && (
-          <div className="mt-2.5 flex items-center gap-1.5 rounded-xl bg-slate-50 px-3 py-1.5 dark:bg-slate-700/50">
-            <span className="text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
+          <div className="mt-2.5 flex items-center gap-1.5 rounded-xl border border-slate-200/60 bg-slate-50/80 px-3 py-1.5 dark:border-white/5 dark:bg-white/[0.03]">
+            <span className="font-mono text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
               {formatGHS(tx.balanceBefore)}
             </span>
             <span className="text-[10px] text-slate-400 dark:text-slate-500">→</span>
-            <span className="text-[11px] font-semibold tabular-nums text-slate-700 dark:text-slate-200">
+            <span className="font-mono text-[11px] font-bold tabular-nums text-slate-800 dark:text-slate-200">
               {formatGHS(tx.balanceAfter)}
             </span>
-            <span className="ml-auto text-[10px] text-slate-400 dark:text-slate-500">Balance</span>
+            <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Balance</span>
           </div>
         )}
 
         {/* Footer: date + status */}
         <div className="mt-2 flex items-center justify-between gap-2">
-          <time className="text-[11px] text-slate-400 dark:text-slate-500">
+          <time className="text-[11px] font-medium text-slate-400 dark:text-slate-500">
             {formatDateTime(tx.createdAt)}
           </time>
           <StatusBadge status={tx.status} />
@@ -236,15 +236,15 @@ function SummaryCard({
   sub?: string;
 }) {
   return (
-    <div className="flex flex-col gap-1 rounded-2xl border border-slate-200/70 bg-white p-4 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/60">
+    <div className="flex flex-col gap-1.5 rounded-3xl border border-slate-200/90 bg-white/90 p-4 sm:p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90">
       <div className="flex items-center justify-between">
-        <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{label}</p>
-        <div className={`flex h-7 w-7 items-center justify-center rounded-lg ${bgClass}`}>
-          <Icon className={`h-3.5 w-3.5 ${colorClass}`} />
+        <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">{label}</p>
+        <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${bgClass}`}>
+          <Icon className={`h-4 w-4 ${colorClass}`} />
         </div>
       </div>
-      <p className="text-lg font-bold tabular-nums text-slate-900 dark:text-white">{value}</p>
-      {sub && <p className="text-[11px] text-slate-400 dark:text-slate-500">{sub}</p>}
+      <p className="font-mono text-xl font-black tabular-nums text-slate-900 dark:text-white">{value}</p>
+      {sub && <p className="text-[11px] font-medium text-slate-400 dark:text-slate-500">{sub}</p>}
     </div>
   );
 }
@@ -295,65 +295,81 @@ export default function TransactionsPage() {
   const netChange = summary.totalCredits - summary.totalDebits;
 
   return (
-    <div className="mx-auto max-w-2xl space-y-4 px-3 py-4 sm:px-4 sm:py-6">
-      {/* ── Header ── */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900 dark:text-white">Transactions</h1>
-          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            Your complete money movement history
-          </p>
+    <div className="space-y-6">
+      {/* Hero Header Banner */}
+      <div className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white/90 p-5 sm:p-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Financial Ledger &amp; Audit Trail
+              </span>
+              <span className="text-[10px] font-bold text-slate-400">· Real-time Settlements</span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+              Transactions
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-2xl leading-relaxed">
+              Complete chronological audit trail of wallet top-ups, order debits, refunds, and adjustments.
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => fetchData(filter, page)}
+              disabled={loading}
+              className="flex h-10 items-center gap-2 rounded-xl border border-slate-200/80 bg-white px-3.5 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 disabled:opacity-50 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-200 dark:hover:bg-white/[0.08]"
+              aria-label="Refresh"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 ${loading ? "animate-spin" : ""}`} />
+              <span>Refresh</span>
+            </button>
+          </div>
         </div>
-        <button
-          onClick={() => fetchData(filter, page)}
-          disabled={loading}
-          className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-500 shadow-sm transition hover:bg-slate-50 hover:text-slate-700 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400 dark:hover:bg-slate-700"
-          aria-label="Refresh"
-        >
-          <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
-        </button>
       </div>
 
       {/* ── Balance Hero ── */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-600 via-brand-700 to-indigo-700 p-5 text-white shadow-lg shadow-brand-500/20">
-        {/* decorative circles */}
-        <div className="pointer-events-none absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/10" />
-        <div className="pointer-events-none absolute -bottom-6 -left-6 h-24 w-24 rounded-full bg-white/5" />
-
-        <div className="relative">
-          <div className="flex items-center gap-2">
-            <Wallet className="h-4 w-4 opacity-80" />
-            <p className="text-xs font-medium opacity-80">Current Balance</p>
+      <div className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-gradient-to-br from-white via-emerald-50/20 to-teal-50/30 p-5 sm:p-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-gradient-to-br dark:from-[#0b1322] dark:via-[#091823] dark:to-[#05131b]">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                <Wallet className="h-4 w-4" />
+              </div>
+              <p className="text-xs font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">Current Wallet Balance</p>
+            </div>
+            <p className="mt-2 font-mono text-3xl sm:text-4xl font-black tabular-nums tracking-tight text-slate-900 dark:text-white">
+              {formatGHS(balance)}
+            </p>
           </div>
-          <p className="mt-1 text-3xl font-bold tabular-nums tracking-tight">
-            {formatGHS(balance)}
-          </p>
-          <div className="mt-3 flex items-center gap-1.5 rounded-xl bg-white/10 px-3 py-1.5 backdrop-blur-sm w-fit">
-            <ArrowLeftRight className="h-3 w-3 opacity-70" />
-            <span className="text-xs font-medium opacity-90">
-              {total} transaction{total !== 1 ? "s" : ""} total
+
+          <div className="flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/80 px-3.5 py-2 text-xs font-semibold backdrop-blur dark:border-white/5 dark:bg-white/[0.04] text-slate-700 dark:text-slate-300 w-fit">
+            <ArrowLeftRight className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+            <span>
+              {total} total transaction{total !== 1 ? "s" : ""} recorded
             </span>
           </div>
         </div>
       </div>
 
       {/* ── Summary Cards ── */}
-      <div className="grid grid-cols-3 gap-2 sm:gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <SummaryCard
           label="Total In"
           value={formatGHS(summary.totalCredits)}
           icon={TrendingUp}
           colorClass="text-emerald-600 dark:text-emerald-400"
-          bgClass="bg-emerald-50 dark:bg-emerald-500/10"
-          sub="All credits"
+          bgClass="bg-emerald-500/15"
+          sub="All deposits & refunds"
         />
         <SummaryCard
           label="Total Out"
           value={formatGHS(summary.totalDebits)}
           icon={TrendingDown}
           colorClass="text-rose-600 dark:text-rose-400"
-          bgClass="bg-rose-50 dark:bg-rose-500/10"
-          sub="All debits"
+          bgClass="bg-rose-500/15"
+          sub="All order debits"
         />
         <SummaryCard
           label="Net Flow"
@@ -361,67 +377,67 @@ export default function TransactionsPage() {
           icon={netChange >= 0 ? TrendingUp : TrendingDown}
           colorClass={
             netChange >= 0
-              ? "text-violet-600 dark:text-violet-400"
-              : "text-orange-600 dark:text-orange-400"
+              ? "text-emerald-600 dark:text-emerald-400"
+              : "text-amber-600 dark:text-amber-400"
           }
           bgClass={
             netChange >= 0
-              ? "bg-violet-50 dark:bg-violet-500/10"
-              : "bg-orange-50 dark:bg-orange-500/10"
+              ? "bg-emerald-500/15"
+              : "bg-amber-500/15"
           }
-          sub={netChange >= 0 ? "Net positive" : "Net negative"}
+          sub={netChange >= 0 ? "Positive cashflow" : "Negative net balance"}
         />
       </div>
 
       {/* ── Filter Tabs ── */}
-      <div className="flex items-center gap-1 rounded-2xl border border-slate-200/70 bg-white p-1 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/60">
-        <Sliders className="ml-2 h-3.5 w-3.5 shrink-0 text-slate-400" />
+      <div className="flex items-center gap-1.5 rounded-2xl border border-slate-200/80 bg-slate-100/80 p-1 text-xs font-bold dark:border-white/10 dark:bg-white/[0.04]">
+        <Sliders className="ml-2.5 h-3.5 w-3.5 shrink-0 text-slate-400" />
         {(["ALL", "CREDIT", "DEBIT"] as FilterType[]).map((f) => (
           <button
             key={f}
             onClick={() => handleFilter(f)}
-            className={`flex-1 rounded-xl py-1.5 text-xs font-semibold transition-all duration-200 ${
+            className={`flex-1 rounded-xl py-2 text-xs font-bold transition-all duration-200 ${
               filter === f
-                ? "bg-brand-600 text-white shadow-sm"
-                : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-700"
+                ? "bg-white text-slate-900 shadow-sm dark:bg-[#0b1322] dark:text-white"
+                : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
             }`}
           >
-            {f === "ALL" ? "All" : f === "CREDIT" ? "Credits" : "Debits"}
+            {f === "ALL" ? "All Activity" : f === "CREDIT" ? "Credits (+)" : "Debits (−)"}
           </button>
         ))}
       </div>
 
       {/* ── Transaction List ── */}
       {loading ? (
-        <div className="flex items-center justify-center py-16">
-          <Spinner className="h-8 w-8 text-brand-500" />
+        <div className="flex items-center justify-center py-20">
+          <Spinner className="h-8 w-8 text-emerald-600" />
         </div>
       ) : transactions.length === 0 ? (
-        <div className="flex flex-col items-center gap-3 py-16 text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800">
-            <Receipt className="h-7 w-7 text-slate-400" />
+        <div className="flex flex-col items-center gap-3 py-20 text-center rounded-3xl border border-slate-200/90 bg-white/90 p-8 dark:border-white/10 dark:bg-[#0b1322]/90">
+          <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/15 dark:text-emerald-400">
+            <Receipt className="h-8 w-8" />
           </div>
           <div>
-            <p className="font-semibold text-slate-700 dark:text-slate-300">
+            <p className="text-base font-bold text-slate-800 dark:text-slate-200">
               No transactions found
             </p>
-            <p className="mt-0.5 text-sm text-slate-400">
+            <p className="mt-1 text-xs text-slate-400 max-w-sm">
               {filter !== "ALL"
-                ? "Try a different filter"
-                : "Your transaction history will appear here"}
+                ? "There are no transactions matching the selected filter."
+                : "Your transaction history will be recorded here automatically when you top-up or place orders."}
             </p>
           </div>
           {filter !== "ALL" && (
             <button
               onClick={() => handleFilter("ALL")}
-              className="rounded-xl bg-brand-50 px-4 py-2 text-sm font-medium text-brand-600 hover:bg-brand-100 dark:bg-brand-500/10 dark:text-brand-400 dark:hover:bg-brand-500/20"
+              className="mt-2 rounded-xl bg-emerald-500/15 px-4 py-2 text-xs font-bold text-emerald-700 hover:bg-emerald-500/25 dark:text-emerald-300 transition"
             >
               Clear filter
             </button>
           )}
         </div>
       ) : (
-        <div className="space-y-2">
+        <div className="space-y-2.5">
           {transactions.map((tx) => (
             <TransactionCard key={tx.id} tx={tx} />
           ))}
@@ -430,26 +446,26 @@ export default function TransactionsPage() {
 
       {/* ── Pagination ── */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-between gap-2 rounded-2xl border border-slate-200/70 bg-white p-3 shadow-sm dark:border-slate-700/60 dark:bg-slate-800/60">
+        <div className="flex items-center justify-between gap-2 rounded-3xl border border-slate-200/90 bg-white/90 p-3.5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90">
           <button
             onClick={() => setPage((p) => Math.max(1, p - 1))}
             disabled={page <= 1 || loading}
-            className="flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700"
+            className="flex items-center gap-1 rounded-xl border border-slate-200 px-3.5 py-1.5 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-40 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
           >
             <ChevronLeft className="h-3.5 w-3.5" />
             Prev
           </button>
 
-          <p className="text-xs text-slate-500 dark:text-slate-400">
+          <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
             Page{" "}
-            <span className="font-semibold text-slate-800 dark:text-slate-200">{page}</span> of{" "}
-            <span className="font-semibold text-slate-800 dark:text-slate-200">{totalPages}</span>
+            <span className="font-bold text-slate-900 dark:text-white">{page}</span> of{" "}
+            <span className="font-bold text-slate-900 dark:text-white">{totalPages}</span>
           </p>
 
           <button
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
             disabled={page >= totalPages || loading}
-            className="flex items-center gap-1 rounded-xl border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition hover:bg-slate-50 disabled:opacity-40 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-700"
+            className="flex items-center gap-1 rounded-xl border border-slate-200 px-3.5 py-1.5 text-xs font-bold text-slate-700 shadow-sm transition hover:bg-slate-50 disabled:opacity-40 dark:border-white/10 dark:text-slate-300 dark:hover:bg-white/5"
           >
             Next
             <ChevronRight className="h-3.5 w-3.5" />

@@ -132,129 +132,200 @@ export default function BillingPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Billing"
-        description={
-          sendClaimEnabled
-            ? "Your wallet balance, Send & Claim, and transactions"
-            : "Your wallet balance and transaction history"
-        }
-      />
+      {/* Hero Header Banner */}
+      <div className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white/90 p-5 sm:p-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Wallet &amp; Clearing System
+              </span>
+              <span className="text-[10px] font-bold text-slate-400">· Instant Settlement</span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+              Billing &amp; Wallet
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-2xl leading-relaxed">
+              {sendClaimEnabled
+                ? "Top up your wallet via Mobile Money or debit card, claim direct transfers, and view audit ledger records."
+                : "Manage your prepaid wallet balance, review top-ups, and track spending history in real-time."}
+            </p>
+          </div>
 
-      {/* Balance Stat Cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard title="Current Balance" value={formatGHS(balance)} icon={Wallet} />
-        <StatCard title="Total Top-ups" value={formatGHS(summary.topups)} icon={ArrowDownLeft} />
-        <StatCard title="Total Spending" value={formatGHS(summary.spend)} icon={ArrowUpRight} />
+          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+            <div className="flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-slate-50/80 px-3.5 py-2.5 text-xs dark:border-white/5 dark:bg-white/[0.04]">
+              <div className="flex h-7 w-7 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                <Wallet className="h-4 w-4" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase text-slate-400">Available Funds</p>
+                <p className="text-sm font-black text-slate-900 dark:text-white tabular-nums">
+                  {formatGHS(balance)}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Tab Navigation — scrollable on mobile */}
-      <div className="overflow-x-auto">
-        <div className="flex min-w-max border-b border-slate-200 dark:border-white/10 text-sm font-medium gap-1">
-          <button
-            type="button"
-            onClick={() => setTab("overview")}
-            className={`flex items-center gap-1.5 whitespace-nowrap pb-3 px-3 transition-colors border-b-2 font-semibold ${
-              tab === "overview"
-                ? "border-brand-600 text-brand-600 dark:border-brand-400 dark:text-brand-400"
-                : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
-            }`}
-          >
-            <Wallet className="h-3.5 w-3.5 shrink-0" />
-            <span>Wallet & Top-up</span>
-          </button>
-          {sendClaimEnabled && (
-            <>
-              <button
-                type="button"
-                onClick={() => setTab("send-claim")}
-                className={`flex items-center gap-1.5 whitespace-nowrap pb-3 px-3 transition-colors border-b-2 font-semibold ${
-                  tab === "send-claim"
-                    ? "border-brand-600 text-brand-600 dark:border-brand-400 dark:text-brand-400"
-                    : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
-                }`}
-              >
-                <Smartphone className="h-3.5 w-3.5 shrink-0" />
-                <span>Send & Claim</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setTab("claim-history")}
-                className={`flex items-center gap-1.5 whitespace-nowrap pb-3 px-3 transition-colors border-b-2 font-semibold ${
-                  tab === "claim-history"
-                    ? "border-brand-600 text-brand-600 dark:border-brand-400 dark:text-brand-400"
-                    : "border-transparent text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
-                }`}
-              >
-                <History className="h-3.5 w-3.5 shrink-0" />
-                <span>Claim History</span>
-              </button>
-            </>
-          )}
+      {/* Balance Stat Cards */}
+      <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-3">
+        <div className="rounded-3xl border border-slate-200/90 bg-white/90 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90 flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Current Balance</p>
+            <p className="text-2xl font-black tracking-tight text-slate-900 dark:text-white tabular-nums">
+              {formatGHS(balance)}
+            </p>
+            <p className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">Ready for instant dispatch</p>
+          </div>
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400">
+            <Wallet className="h-6 w-6" />
+          </div>
         </div>
+
+        <div className="rounded-3xl border border-slate-200/90 bg-white/90 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90 flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Top-ups</p>
+            <p className="text-2xl font-black tracking-tight text-slate-900 dark:text-white tabular-nums">
+              {formatGHS(summary.topups)}
+            </p>
+            <p className="text-[11px] font-medium text-slate-400">Lifetime wallet deposits</p>
+          </div>
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-500/10 text-sky-600 dark:bg-sky-500/20 dark:text-sky-400">
+            <ArrowDownLeft className="h-6 w-6" />
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-slate-200/90 bg-white/90 p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90 flex items-center justify-between">
+          <div className="space-y-1">
+            <p className="text-xs font-semibold text-slate-500 dark:text-slate-400">Total Spending</p>
+            <p className="text-2xl font-black tracking-tight text-slate-900 dark:text-white tabular-nums">
+              {formatGHS(summary.spend)}
+            </p>
+            <p className="text-[11px] font-medium text-slate-400">Total data bundle fulfillment</p>
+          </div>
+          <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400">
+            <ArrowUpRight className="h-6 w-6" />
+          </div>
+        </div>
+      </div>
+
+      {/* Modern Segmented Navigation Tabs */}
+      <div className="flex items-center gap-1.5 rounded-2xl border border-slate-200/80 bg-slate-100/80 p-1 text-xs font-bold dark:border-white/10 dark:bg-white/[0.04] w-fit max-w-full overflow-x-auto">
+        <button
+          type="button"
+          onClick={() => setTab("overview")}
+          className={`flex items-center gap-2 rounded-xl px-4 py-2 transition-all ${
+            tab === "overview"
+              ? "bg-white text-slate-900 shadow-sm dark:bg-[#0b1322] dark:text-white"
+              : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+          }`}
+        >
+          <Wallet className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          <span>Wallet &amp; Top-up</span>
+        </button>
+        {sendClaimEnabled && (
+          <>
+            <button
+              type="button"
+              onClick={() => setTab("send-claim")}
+              className={`flex items-center gap-2 rounded-xl px-4 py-2 transition-all ${
+                tab === "send-claim"
+                  ? "bg-white text-slate-900 shadow-sm dark:bg-[#0b1322] dark:text-white"
+                  : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+              }`}
+            >
+              <Smartphone className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              <span>Send &amp; Claim</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTab("claim-history")}
+              className={`flex items-center gap-2 rounded-xl px-4 py-2 transition-all ${
+                tab === "claim-history"
+                  ? "bg-white text-slate-900 shadow-sm dark:bg-[#0b1322] dark:text-white"
+                  : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-white"
+              }`}
+            >
+              <History className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+              <span>Claim History</span>
+            </button>
+          </>
+        )}
       </div>
 
       {/* Tab 1: Overview & Instant Top-up */}
       {tab === "overview" && (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
-          <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm dark:border-white/5 dark:bg-[#0d1526]">
-            <h2 className="text-sm font-semibold">Request a top-up</h2>
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
+          <div className="rounded-3xl border border-slate-200/90 bg-white/90 p-5 sm:p-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90">
+            <div className="flex items-center justify-between pb-4 border-b border-slate-100 dark:border-white/5">
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">Instant Top-up</h2>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
+                Automated
+              </span>
+            </div>
             <div className="mt-4">
               <TopupForm onSuccess={load} />
             </div>
           </div>
 
-          <div className="rounded-2xl border border-slate-200/70 bg-white shadow-sm dark:border-white/5 dark:bg-[#0d1526] lg:col-span-2">
-            <div className="border-b border-slate-100 px-5 py-4 dark:border-white/5">
-              <h2 className="text-sm font-semibold">Wallet Ledger Transactions</h2>
+          <div className="rounded-3xl border border-slate-200/90 bg-white/90 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90 lg:col-span-2 overflow-hidden flex flex-col">
+            <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4 dark:border-white/5">
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">Wallet Ledger Activity</h2>
+              <span className="text-xs text-slate-400">Latest transactions</span>
             </div>
             {loading ? (
-              <div className="flex justify-center py-12">
-                <Spinner className="h-6 w-6 text-brand-600" />
+              <div className="flex justify-center py-16">
+                <Spinner className="h-6 w-6 text-emerald-600" />
               </div>
             ) : data.length === 0 ? (
-              <EmptyState icon={Receipt} title="No transactions yet" description="Top up to get started." />
+              <EmptyState icon={Receipt} title="No transactions yet" description="Deposit funds into your wallet to start ordering." />
             ) : (
-              <div className="divide-y divide-slate-100 dark:divide-white/5">
+              <div className="divide-y divide-slate-100 dark:divide-white/5 overflow-y-auto max-h-[520px]">
                 {data.map((t) => (
-                  <div key={t.id} className="flex items-start gap-3 px-4 py-3 text-sm sm:items-center sm:px-5">
+                  <div key={t.id} className="flex items-start gap-3.5 px-5 py-3.5 text-sm transition hover:bg-slate-50/50 dark:hover:bg-white/[0.02] sm:items-center">
                     <span
-                      className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
                         t.type === "TOPUP"
-                          ? "bg-emerald-50 text-emerald-600 dark:bg-emerald-500/10 dark:text-emerald-400"
+                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
                           : "bg-slate-100 text-slate-500 dark:bg-white/5 dark:text-slate-400"
                       }`}
                     >
                       {t.type === "TOPUP" ? (
-                        <ArrowDownLeft className="h-4 w-4" />
+                        <ArrowDownLeft className="h-4.5 w-4.5" />
                       ) : (
-                        <ArrowUpRight className="h-4 w-4" />
+                        <ArrowUpRight className="h-4.5 w-4.5" />
                       )}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="font-medium">{t.type}</p>
-                      <p className="truncate text-xs text-slate-500 dark:text-slate-400">
+                      <div className="flex items-center gap-2">
+                        <p className="font-bold text-slate-900 dark:text-white">{t.type}</p>
+                        {txBadge(t.status)}
+                      </div>
+                      <p className="truncate text-xs text-slate-500 dark:text-slate-400 mt-0.5">
                         {formatDateTime(t.createdAt)}
-                        {t.reference ? ` · ref ${t.reference}` : ""}
+                        {t.reference ? ` · Ref: ${t.reference}` : ""}
                         {t.note ? ` · ${t.note}` : ""}
                       </p>
                     </div>
                     <div className="shrink-0 text-right">
-                      <p className="font-semibold">{formatGHS(t.amount)}</p>
-                      <div className="mt-0.5 flex items-center justify-end gap-1.5">
-                        {txBadge(t.status)}
-                        {t.status === "PENDING" && t.reference?.startsWith("PSK-") && (
+                      <p className={`font-mono text-sm font-black ${t.type === "TOPUP" ? "text-emerald-600 dark:text-emerald-400" : "text-slate-900 dark:text-white"}`}>
+                        {t.type === "TOPUP" ? `+${formatGHS(t.amount)}` : `-${formatGHS(t.amount)}`}
+                      </p>
+                      {t.status === "PENDING" && t.reference?.startsWith("PSK-") && (
+                        <div className="mt-1">
                           <button
                             type="button"
                             disabled={verifyingId === t.id}
                             onClick={() => verifyPaystackTx(t.reference!, t.id)}
-                            className="rounded border border-brand-500/30 bg-brand-500/10 px-1.5 py-0.5 text-[10px] font-medium text-brand-600 hover:bg-brand-500/20 disabled:opacity-50 dark:text-brand-400"
+                            className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[11px] font-bold text-emerald-700 hover:bg-emerald-500/20 disabled:opacity-50 dark:text-emerald-300"
                             title="Check payment status with Paystack"
                           >
                             {verifyingId === t.id ? "Checking…" : "Verify"}
                           </button>
-                        )}
-                      </div>
+                        </div>
+                      )}
                     </div>
                   </div>
                 ))}

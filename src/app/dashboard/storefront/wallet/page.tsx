@@ -57,19 +57,30 @@ export default async function StorefrontWalletPage({
   ]);
 
   return (
-    <div className="space-y-6 p-4 sm:p-6">
-      <header>
-        <h1 className="text-xl font-bold text-slate-900 dark:text-white">Commissions Wallet</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Withdraw commissions to your mobile money account.
-        </p>
-      </header>
+    <div className="space-y-6">
+      <div className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white/90 p-5 sm:p-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90">
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Commission Clearing &amp; Payouts
+            </span>
+            <span className="text-[10px] font-bold text-slate-400">· MoMo Automated Settlement</span>
+          </div>
+          <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+            Commissions &amp; Payout Wallet
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-2xl leading-relaxed">
+            Monitor earnings from your public storefront sales, track pending clearance, and request instant withdrawals directly to your Mobile Money number.
+          </p>
+        </div>
+      </div>
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatCard label="Available" value={wallet.balance} accent="text-emerald-600 dark:text-emerald-400" />
-        <StatCard label="Pending" value={wallet.pendingBalance} accent="text-amber-600 dark:text-amber-400" />
-        <StatCard label="Total withdrawn" value={approvedSum._sum.amount ?? 0} accent="text-slate-900 dark:text-white" />
-        <StatCard label="Lifetime commissions" value={wallet.balance + wallet.pendingBalance + (approvedSum._sum.amount ?? 0)} accent="text-slate-900 dark:text-white" />
+      <div className="grid grid-cols-2 gap-3.5 lg:grid-cols-4">
+        <StatCard label="Available Balance" value={wallet.balance} accent="text-emerald-600 dark:text-emerald-400" />
+        <StatCard label="Pending Clearing" value={wallet.pendingBalance} accent="text-amber-600 dark:text-amber-400" />
+        <StatCard label="Total Withdrawn" value={approvedSum._sum.amount ?? 0} accent="text-slate-900 dark:text-white" />
+        <StatCard label="Lifetime Earnings" value={wallet.balance + wallet.pendingBalance + (approvedSum._sum.amount ?? 0)} accent="text-slate-900 dark:text-white" />
       </div>
 
       <WithdrawalForm
@@ -149,9 +160,11 @@ export default async function StorefrontWalletPage({
 
 function StatCard({ label, value, accent }: { label: string; value: number; accent: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-[#0d1526]">
-      <p className="text-xs font-medium uppercase text-slate-500">{label}</p>
-      <p className={`mt-1 text-lg font-bold ${accent}`}>GHS {fromPesewas(value).toFixed(2)}</p>
+    <div className="rounded-3xl border border-slate-200/90 bg-white/90 p-4 sm:p-5 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90 flex flex-col justify-between">
+      <p className="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">{label}</p>
+      <p className={`mt-2 font-mono text-xl sm:text-2xl font-black tabular-nums ${accent}`}>
+        GHS {fromPesewas(value).toFixed(2)}
+      </p>
     </div>
   );
 }

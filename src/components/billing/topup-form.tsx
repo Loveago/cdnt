@@ -38,54 +38,84 @@ export function TopupForm({ onSuccess }: { onSuccess: () => void }) {
   const fee = numAmount > 0 ? Math.round(numAmount * 0.02 * 100) / 100 : 0;
   const total = numAmount > 0 ? Math.round((numAmount + fee) * 100) / 100 : 0;
 
+  const quickPresets = [20, 50, 100, 200, 500];
+
   return (
-    <form onSubmit={submit} className="space-y-3">
-      <div className="rounded-xl border border-brand-600/30 bg-brand-50/60 p-3.5 text-left transition dark:border-brand-500/30 dark:bg-brand-500/10">
+    <form onSubmit={submit} className="space-y-4">
+      <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.06] p-3.5 text-left transition dark:border-emerald-500/20 dark:bg-emerald-500/[0.08]">
         <div className="flex items-center gap-2">
-          <CreditCard className="h-4 w-4 text-brand-600 dark:text-brand-400" />
-          <p className="text-sm font-semibold text-brand-900 dark:text-brand-200">Paystack Instant Top-up</p>
+          <CreditCard className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          <p className="text-xs font-bold text-emerald-950 dark:text-emerald-200 uppercase tracking-wider">Paystack Instant Checkout</p>
         </div>
-        <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-          Instant automatic crediting via Mobile Money (MTN, Telecel, AT) or debit card. (A 2% gateway processing fee applies).
+        <p className="mt-1 text-[11px] leading-relaxed text-slate-600 dark:text-slate-400">
+          Deposit via MTN MoMo, Telecel Cash, AT Money or debit/credit card with automatic wallet settlement. (2% gateway fee).
         </p>
       </div>
 
-      <div className="space-y-1.5">
-        <Label htmlFor="amount">Amount to Deposit (GHS)</Label>
-        <Input
-          id="amount"
-          type="number"
-          min="1"
-          step="0.01"
-          placeholder="50.00"
-          value={amount}
-          onChange={(e) => setAmount(e.target.value)}
-        />
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="amount" className="text-xs font-bold text-slate-700 dark:text-slate-300">Amount to Deposit (GHS)</Label>
+          <span className="text-[10px] font-semibold text-slate-400">Min ₵1.00</span>
+        </div>
+        <div className="relative">
+          <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-slate-400">₵</span>
+          <Input
+            id="amount"
+            type="number"
+            min="1"
+            step="0.01"
+            placeholder="50.00"
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            className="pl-8 font-mono font-bold text-base h-11 rounded-xl border-slate-200 dark:border-white/10 dark:bg-white/[0.03] focus:border-emerald-500 focus:ring-emerald-500/20"
+          />
+        </div>
+        {/* Quick Amount Chips */}
+        <div className="flex flex-wrap gap-1.5 pt-1">
+          {quickPresets.map((preset) => (
+            <button
+              key={preset}
+              type="button"
+              onClick={() => setAmount(String(preset))}
+              className={`rounded-lg px-2.5 py-1 text-xs font-bold transition ${
+                Number(amount) === preset
+                  ? "bg-emerald-600 text-white shadow-sm"
+                  : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10"
+              }`}
+            >
+              ₵{preset}
+            </button>
+          ))}
+        </div>
       </div>
 
       {numAmount > 0 && (
-        <div className="rounded-xl border border-slate-200/80 bg-slate-50/80 p-3 text-xs space-y-1.5 dark:border-white/5 dark:bg-white/5">
+        <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-3.5 text-xs space-y-2 dark:border-white/5 dark:bg-white/[0.03]">
           <div className="flex justify-between text-slate-600 dark:text-slate-400">
-            <span>Wallet Credit:</span>
-            <span className="font-semibold text-slate-900 dark:text-white">GHS {numAmount.toFixed(2)}</span>
+            <span>Credited to Wallet:</span>
+            <span className="font-mono font-bold text-slate-900 dark:text-white">GHS {numAmount.toFixed(2)}</span>
           </div>
           <div className="flex justify-between text-slate-600 dark:text-slate-400">
-            <span>Paystack Processing Fee (2%):</span>
-            <span className="font-medium text-amber-600 dark:text-amber-400">+GHS {fee.toFixed(2)}</span>
+            <span>Paystack Fee (2%):</span>
+            <span className="font-mono font-medium text-amber-600 dark:text-amber-400">+GHS {fee.toFixed(2)}</span>
           </div>
-          <div className="border-t border-slate-200/60 pt-1.5 flex justify-between font-bold text-slate-900 dark:text-white">
-            <span>Total to Pay:</span>
-            <span className="text-brand-600 dark:text-brand-400">GHS {total.toFixed(2)}</span>
+          <div className="border-t border-slate-200/80 pt-2 flex justify-between font-bold text-slate-900 dark:text-white dark:border-white/10">
+            <span>Total Payable:</span>
+            <span className="font-mono text-sm text-emerald-600 dark:text-emerald-400">GHS {total.toFixed(2)}</span>
           </div>
         </div>
       )}
 
-      <Button type="submit" className="w-full" disabled={submitting || numAmount <= 0}>
-        {submitting && <Spinner className="mr-2" />}
+      <Button
+        type="submit"
+        className="w-full h-11 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 font-bold text-white shadow-md shadow-emerald-600/20 hover:from-emerald-500 hover:to-teal-500 active:scale-[0.99] transition"
+        disabled={submitting || numAmount <= 0}
+      >
+        {submitting && <Spinner className="mr-2 h-4 w-4" />}
         {numAmount > 0 ? `Pay GHS ${total.toFixed(2)} with Paystack` : "Pay with Paystack"}
       </Button>
-      <p className="text-center text-xs text-slate-500 dark:text-slate-400">
-        You will be redirected to Paystack to complete payment. Your wallet is credited instantly on success.
+      <p className="text-center text-[11px] text-slate-500 dark:text-slate-400 leading-tight">
+        Protected with 256-bit SSL encryption. Instant automated wallet crediting.
       </p>
     </form>
   );

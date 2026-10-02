@@ -133,46 +133,51 @@ export function SendClaimCard({ onSuccess }: { onSuccess: () => void }) {
   return (
     <div className="space-y-6">
       {/* Instructions and Admin MoMo Details Card */}
-      <div className="overflow-hidden rounded-2xl border border-brand-200 bg-gradient-to-br from-emerald-50/50 via-teal-50/30 to-white p-5 shadow-sm dark:border-brand-500/20 dark:bg-gradient-to-br dark:from-brand-950/40 dark:via-[#0d1627] dark:to-[#0d1627]">
-        <div className="flex items-start gap-3">
-          <div className="rounded-xl bg-brand-600 p-2 text-white shadow-md shadow-brand-500/20">
+      <div className="overflow-hidden rounded-3xl border border-slate-200/90 bg-white/90 p-5 sm:p-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90">
+        <div className="flex items-start gap-3.5">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
             <Smartphone className="h-5 w-5" />
           </div>
           <div className="flex-1 min-w-0">
-            <h3 className="text-base font-bold text-slate-900 dark:text-white">SEND &amp; CLAIM</h3>
-            <p className="text-xs text-slate-600 dark:text-slate-300">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                Direct MoMo Clearing
+              </span>
+            </div>
+            <h3 className="mt-1 text-lg font-black text-slate-900 dark:text-white tracking-tight">Manual Send &amp; Instant Claim</h3>
+            <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">
               {settings?.instructions ||
-                "Send money to the Mobile Money number below, then enter your Transaction ID below to instantly claim your funds."}
+                "Transfer funds directly to the designated Mobile Money wallet below, then submit your SMS Transaction ID for automated clearing."}
             </p>
           </div>
         </div>
 
         {/* Display MoMo Account details */}
-        <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <div className="rounded-xl border border-slate-200/80 bg-white/80 p-3 backdrop-blur dark:border-white/5 dark:bg-white/5">
-            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              MoMo Network
+        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-3.5 backdrop-blur dark:border-white/5 dark:bg-white/[0.03]">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              Network
             </span>
-            <p className="mt-0.5 text-sm font-bold text-slate-800 dark:text-slate-100">
-              {settings?.network ?? "MTN"} MoMo
+            <p className="mt-1 text-sm font-black text-slate-900 dark:text-white">
+              {settings?.network ?? "MTN"} Mobile Money
             </p>
           </div>
 
-          <div className="rounded-xl border border-slate-200/80 bg-white/80 p-3 backdrop-blur dark:border-white/5 dark:bg-white/5">
-            <span className="text-[11px] font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wider">
+          <div className="rounded-2xl border border-slate-200/80 bg-slate-50/80 p-3.5 backdrop-blur dark:border-white/5 dark:bg-white/[0.03]">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
               Account Name
             </span>
-            <p className="mt-0.5 text-sm font-bold text-slate-800 dark:text-slate-100">
+            <p className="mt-1 text-sm font-black text-slate-900 dark:text-white">
               {settings?.accountName ?? "MyCediNet"}
             </p>
           </div>
 
-          <div className="flex items-center justify-between rounded-xl border border-brand-300 bg-brand-50/80 p-3 backdrop-blur dark:border-brand-500/30 dark:bg-brand-500/10">
+          <div className="flex items-center justify-between rounded-2xl border border-emerald-500/30 bg-emerald-500/10 p-3.5 backdrop-blur dark:border-emerald-500/20 dark:bg-emerald-500/[0.08]">
             <div>
-              <span className="text-[11px] font-medium text-brand-700 dark:text-brand-300 uppercase tracking-wider">
+              <span className="text-[10px] font-black text-emerald-700 dark:text-emerald-300 uppercase tracking-wider">
                 MoMo Number
               </span>
-              <p className="font-mono text-base font-extrabold text-brand-900 dark:text-brand-200">
+              <p className="font-mono text-base font-black text-emerald-950 dark:text-emerald-100 mt-0.5">
                 {settings?.momoNumber ?? "024XXXXXXX"}
               </p>
             </div>
@@ -181,7 +186,7 @@ export function SendClaimCard({ onSuccess }: { onSuccess: () => void }) {
               size="sm"
               variant="outline"
               onClick={copyNumber}
-              className="border-brand-300 bg-white hover:bg-brand-50 text-brand-700 dark:border-brand-500/40 dark:bg-slate-900 dark:text-brand-300"
+              className="border-emerald-500/40 bg-white hover:bg-emerald-50 text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-950/40 dark:text-emerald-300 font-bold"
             >
               {copied ? <Check className="h-3.5 w-3.5 text-emerald-600" /> : <Copy className="h-3.5 w-3.5" />}
               {copied ? "Copied" : "Copy"}
@@ -190,7 +195,7 @@ export function SendClaimCard({ onSuccess }: { onSuccess: () => void }) {
         </div>
 
         {settings && (
-          <p className="mt-3 text-[11px] text-slate-500 dark:text-slate-400">
+          <p className="mt-3 text-[11px] font-medium text-slate-500 dark:text-slate-400">
             Minimum: {formatGHS(settings.minimumAmount)} · Maximum: {formatGHS(settings.maximumAmount)}
           </p>
         )}
@@ -198,37 +203,37 @@ export function SendClaimCard({ onSuccess }: { onSuccess: () => void }) {
 
       {/* Verified Success Result Card */}
       {claimResult && (
-        <div className="rounded-2xl border border-emerald-300 bg-emerald-50/80 p-5 dark:border-emerald-500/30 dark:bg-emerald-500/10">
-          <div className="flex items-center gap-3">
-            <div className="rounded-full bg-emerald-600 p-2 text-white">
-              <CheckCircle2 className="h-5 w-5" />
+        <div className="rounded-3xl border border-emerald-500/30 bg-emerald-500/10 p-5 sm:p-6 dark:border-emerald-500/20 dark:bg-emerald-500/[0.08]">
+          <div className="flex items-center gap-3.5">
+            <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-emerald-600 text-white shadow-md shadow-emerald-600/30">
+              <CheckCircle2 className="h-6 w-6" />
             </div>
             <div>
-              <h4 className="text-base font-bold text-emerald-900 dark:text-emerald-200">
-                ✓ Payment Verified &amp; Credited
+              <h4 className="text-base font-black text-emerald-950 dark:text-emerald-100">
+                Payment Verified &amp; Wallet Credited
               </h4>
-              <p className="text-xs text-emerald-700 dark:text-emerald-300">
-                {formatGHS(claimResult.amount)} has been added to your MyCediNet wallet.
+              <p className="text-xs text-emerald-800 dark:text-emerald-300">
+                {formatGHS(claimResult.amount)} has been added to your MyCediNet available balance.
               </p>
             </div>
           </div>
 
-          <div className="mt-4 grid grid-cols-2 gap-3 border-t border-emerald-200 pt-3 text-xs sm:grid-cols-4 dark:border-emerald-500/20">
+          <div className="mt-4 grid grid-cols-2 gap-3 border-t border-emerald-500/20 pt-4 text-xs sm:grid-cols-4">
             <div>
-              <span className="text-slate-500 dark:text-slate-400">Amount Credited:</span>
-              <p className="font-bold text-emerald-700 dark:text-emerald-300">{formatGHS(claimResult.amount)}</p>
+              <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">Amount Credited:</span>
+              <p className="font-mono text-sm font-black text-emerald-700 dark:text-emerald-300 mt-0.5">{formatGHS(claimResult.amount)}</p>
             </div>
             <div>
-              <span className="text-slate-500 dark:text-slate-400">Network:</span>
-              <p className="font-semibold text-slate-800 dark:text-slate-100">{claimResult.network}</p>
+              <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">Network:</span>
+              <p className="text-sm font-bold text-slate-800 dark:text-slate-100 mt-0.5">{claimResult.network}</p>
             </div>
             <div>
-              <span className="text-slate-500 dark:text-slate-400">Transaction ID:</span>
-              <p className="font-mono font-semibold text-slate-800 dark:text-slate-100">{claimResult.transactionReference}</p>
+              <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">Transaction ID:</span>
+              <p className="font-mono text-sm font-bold text-slate-800 dark:text-slate-100 mt-0.5">{claimResult.transactionReference}</p>
             </div>
             <div>
-              <span className="text-slate-500 dark:text-slate-400">New Balance:</span>
-              <p className="font-bold text-slate-900 dark:text-white">{formatGHS(claimResult.newBalance)}</p>
+              <span className="text-[10px] uppercase font-bold text-slate-500 dark:text-slate-400">New Balance:</span>
+              <p className="font-mono text-sm font-black text-slate-900 dark:text-white mt-0.5">{formatGHS(claimResult.newBalance)}</p>
             </div>
           </div>
 
@@ -236,7 +241,7 @@ export function SendClaimCard({ onSuccess }: { onSuccess: () => void }) {
             type="button"
             variant="outline"
             size="sm"
-            className="mt-4 border-emerald-300 text-emerald-800 dark:border-emerald-500/40 dark:text-emerald-200"
+            className="mt-5 border-emerald-500/40 text-emerald-800 dark:border-emerald-500/30 dark:text-emerald-200 font-bold"
             onClick={() => {
               setClaimResult(null);
               setReference("");
@@ -249,27 +254,27 @@ export function SendClaimCard({ onSuccess }: { onSuccess: () => void }) {
 
       {/* Claim Form: ONLY Transaction ID */}
       {!claimResult && (
-        <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm dark:border-white/5 dark:bg-[#0d1526]">
-          <div className="flex items-center gap-2 mb-1">
-            <Hash className="h-4 w-4 text-brand-600 dark:text-brand-400" />
-            <h4 className="text-sm font-semibold text-slate-900 dark:text-white">
+        <div className="rounded-3xl border border-slate-200/90 bg-white/90 p-5 sm:p-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90">
+          <div className="flex items-center gap-2 mb-1.5">
+            <Hash className="h-4.5 w-4.5 text-emerald-600 dark:text-emerald-400" />
+            <h4 className="text-base font-bold text-slate-900 dark:text-white">
               Claim Payment with Transaction ID
             </h4>
           </div>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            After sending money, find the <strong>Transaction ID</strong> from your Mobile Money SMS receipt (e.g. <code>87441563372</code>) and paste it below. The amount and network are automatically verified.
+          <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+            From your Mobile Money SMS receipt, copy the <strong>Transaction ID</strong> (e.g. <code>87441563372</code>) and paste it below. The system performs instant reconciliation.
           </p>
 
           {errorMessage && (
-            <div className="mt-3 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-xs text-red-700 dark:border-red-500/20 dark:bg-red-500/10 dark:text-red-400">
-              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+            <div className="mt-4 flex items-start gap-2.5 rounded-2xl border border-red-500/30 bg-red-500/10 p-3.5 text-xs font-medium text-red-700 dark:text-red-400">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-600" />
               <span>{errorMessage}</span>
             </div>
           )}
 
-          <form onSubmit={handleClaim} className="mt-4 space-y-4">
+          <form onSubmit={handleClaim} className="mt-5 space-y-4">
             <div className="space-y-1.5">
-              <Label htmlFor="txRef" className="text-xs font-semibold">
+              <Label htmlFor="txRef" className="text-xs font-bold text-slate-700 dark:text-slate-300">
                 Transaction ID *
               </Label>
               <div className="relative">
@@ -278,27 +283,27 @@ export function SendClaimCard({ onSuccess }: { onSuccess: () => void }) {
                   placeholder="e.g. 87441563372"
                   value={reference}
                   onChange={(e) => setReference(e.target.value)}
-                  className="font-mono text-base tracking-wider uppercase h-11 pr-4"
+                  className="font-mono text-base tracking-wider uppercase h-11 pr-4 rounded-xl border-slate-200 dark:border-white/10 dark:bg-white/[0.03] focus:border-emerald-500 focus:ring-emerald-500/20"
                   required
                   autoFocus
                 />
               </div>
               <p className="text-[11px] text-slate-400 dark:text-slate-500">
-                Enter only the transaction reference or ID from the confirmation message.
+                Paste the transaction reference ID received in your MoMo confirmation SMS.
               </p>
             </div>
 
             <Button
               type="submit"
-              className="w-full sm:w-auto px-8 h-10 font-semibold"
+              className="w-full sm:w-auto px-8 h-11 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 font-bold text-white shadow-md shadow-emerald-600/20 hover:from-emerald-500 hover:to-teal-500 active:scale-[0.99] transition"
               disabled={claiming || !reference.trim()}
             >
               {claiming ? (
                 <>
-                  <Spinner className="mr-2" /> {claimStatusText || "Checking payment..."}
+                  <Spinner className="mr-2 h-4 w-4" /> {claimStatusText || "Reconciling payment..."}
                 </>
               ) : (
-                "Claim Payment"
+                "Claim Payment Now"
               )}
             </Button>
           </form>

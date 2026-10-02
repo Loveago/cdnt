@@ -235,179 +235,215 @@ export default function UserMtnVerificationPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="MTN Number Verification"
-        description="Verify recipient MTN phone numbers before placing orders"
-      />
+      {/* Hero Header Banner */}
+      <div className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white/90 p-5 sm:p-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Subscriber Validation Service
+              </span>
+              <span className="text-[10px] font-bold text-slate-400">· Zero-Fail Verification</span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+              MTN Verification
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-2xl leading-relaxed">
+              Verify recipient MTN subscriber eligibility in advance to eliminate dispatch failures and maximize delivery speed.
+            </p>
+          </div>
+        </div>
+      </div>
 
       {/* Verification Enforcement Notice */}
       {verificationEnabled ? (
-        <div className="flex items-start gap-3 rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900 dark:border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-200">
-          <ShieldCheck className="h-5 w-5 shrink-0 text-blue-600 dark:text-blue-400 mt-0.5" />
+        <div className="flex items-start gap-3 rounded-3xl border border-emerald-500/30 bg-emerald-500/10 p-4 sm:p-5 text-sm text-emerald-950 dark:border-emerald-500/20 dark:bg-emerald-500/[0.08] dark:text-emerald-200 shadow-sm">
+          <ShieldCheck className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
           <div className="space-y-1">
-            <p className="font-semibold">MTN Number Verification is currently active</p>
-            <p className="text-xs text-blue-800 dark:text-blue-300">
-              Only verified MTN recipient numbers can be used when ordering MTN data bundles. Telecel and AirtelTigo bundles are not affected.
+            <p className="font-bold text-sm">MTN Number Verification is Currently Active</p>
+            <p className="text-xs text-emerald-800 dark:text-emerald-300 leading-relaxed">
+              Only pre-verified MTN recipient numbers can be dispatched for MTN data bundles. Telecel and AT bundles are not subject to verification restrictions.
             </p>
           </div>
         </div>
       ) : (
-        <div className="flex items-start gap-3 rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700 dark:border-slate-800 dark:bg-slate-900/50 dark:text-slate-300">
-          <Info className="h-5 w-5 shrink-0 text-slate-500 mt-0.5" />
+        <div className="flex items-start gap-3 rounded-3xl border border-slate-200/90 bg-white/90 p-4 sm:p-5 text-sm text-slate-700 dark:border-white/10 dark:bg-[#0b1322]/90 dark:text-slate-300 shadow-sm backdrop-blur-xl">
+          <Info className="h-5 w-5 shrink-0 text-slate-400 mt-0.5" />
           <div className="space-y-1">
-            <p className="font-semibold">Optional MTN Verification</p>
-            <p className="text-xs text-slate-600 dark:text-slate-400">
-              Verification enforcement is currently OFF. You can still verify recipient numbers in advance to ensure smooth future deliveries.
+            <p className="font-bold text-sm text-slate-900 dark:text-white">Optional MTN Pre-Verification</p>
+            <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              Strict verification enforcement is currently disabled. You may still pre-validate recipient numbers to ensure 100% successful order execution.
             </p>
           </div>
         </div>
       )}
 
-      {/* Submit Card */}
-      <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <h2 className="text-base font-semibold text-slate-900 dark:text-white">
-          Submit an MTN Number
-        </h2>
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          {instructions || "Submit your MTN number for verification before purchasing MTN packages. Prefixes: 024, 025, 053, 054, 055, 059."}
-        </p>
+      {/* Forms Grid: Single and Bulk */}
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        {/* Submit Single Card */}
+        <div className="rounded-3xl border border-slate-200/90 bg-white/90 p-5 sm:p-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/5">
+              <h2 className="text-base font-bold text-slate-900 dark:text-white">
+                Submit Single Number
+              </h2>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
+                Direct
+              </span>
+            </div>
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              {instructions || "Submit your MTN number for verification before purchasing MTN packages. Prefixes: 024, 025, 053, 054, 055, 059."}
+            </p>
 
-        <form onSubmit={handleSubmit} className="mt-5 max-w-md space-y-4">
-          <div className="space-y-1.5">
-            <Label htmlFor="phoneNumber">MTN Phone Number</Label>
-            <div className="flex gap-2">
-              <Input
-                id="phoneNumber"
-                type="text"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                placeholder="e.g. 0241234567"
-                className="font-mono text-sm"
-                disabled={submitting}
-              />
-              <Button type="submit" disabled={submitting || !phoneNumber.trim()} className="shrink-0">
-                {submitting ? <Spinner className="h-4 w-4" /> : <Send className="h-4 w-4 mr-1.5" />}
-                Submit
+            <form onSubmit={handleSubmit} className="mt-4 space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="phoneNumber" className="text-xs font-bold text-slate-700 dark:text-slate-300">MTN Phone Number</Label>
+                <div className="flex gap-2">
+                  <Input
+                    id="phoneNumber"
+                    type="text"
+                    value={phoneNumber}
+                    onChange={(e) => setPhoneNumber(e.target.value)}
+                    placeholder="e.g. 0241234567"
+                    className="font-mono text-sm h-11 rounded-xl border-slate-200 dark:border-white/10 dark:bg-white/[0.03] focus:border-emerald-500 focus:ring-emerald-500/20"
+                    disabled={submitting}
+                  />
+                  <Button
+                    type="submit"
+                    disabled={submitting || !phoneNumber.trim()}
+                    className="shrink-0 h-11 px-5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 font-bold text-white shadow-md shadow-emerald-600/20 hover:from-emerald-500 hover:to-teal-500 active:scale-[0.99] transition"
+                  >
+                    {submitting ? <Spinner className="h-4 w-4" /> : <Send className="h-4 w-4 mr-1.5" />}
+                    Submit
+                  </Button>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Accepts 024XXXXXXX, 233XXXXXXXXX, or +233XXXXXXXXX format.
+                </p>
+              </div>
+
+              {submissionFeedback && (
+                <div
+                  className={`rounded-2xl p-4 text-xs font-semibold flex items-start gap-2.5 ${
+                    submissionFeedback.type === "verified"
+                      ? "bg-emerald-500/15 text-emerald-800 border border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300"
+                      : submissionFeedback.type === "pending"
+                      ? "bg-amber-500/15 text-amber-800 border border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-300"
+                      : submissionFeedback.type === "success"
+                      ? "bg-blue-500/15 text-blue-800 border border-blue-500/30 dark:bg-blue-500/10 dark:text-blue-300"
+                      : "bg-red-500/15 text-red-800 border border-red-500/30 dark:bg-red-500/10 dark:text-red-300"
+                  }`}
+                >
+                  {submissionFeedback.type === "verified" && <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-600" />}
+                  {submissionFeedback.type === "pending" && <Clock className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />}
+                  {submissionFeedback.type === "success" && <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-blue-600" />}
+                  {submissionFeedback.type === "error" && <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-600" />}
+                  <span>{submissionFeedback.message}</span>
+                </div>
+              )}
+            </form>
+          </div>
+        </div>
+
+        {/* Bulk TXT Upload Card */}
+        <div className="rounded-3xl border border-slate-200/90 bg-white/90 p-5 sm:p-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90 flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-white/5">
+              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Upload className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                Bulk Upload via TXT File
+              </h2>
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2.5 py-0.5 rounded-full border border-emerald-500/20">
+                Batch
+              </span>
+            </div>
+            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+              Upload a plain-text file (.txt) with one MTN number per line to submit hundreds of numbers at once.
+            </p>
+
+            <div className="mt-4 space-y-3">
+              {/* Drop / click area */}
+              <label
+                htmlFor="bulkFile"
+                className={`flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed p-5 cursor-pointer transition
+                  ${uploadFile
+                    ? "border-emerald-500/50 bg-emerald-50/50 dark:border-emerald-500/40 dark:bg-emerald-500/10"
+                    : "border-slate-200 bg-slate-50 hover:border-emerald-500/40 hover:bg-slate-100 dark:border-white/10 dark:bg-white/[0.02] dark:hover:border-emerald-500/30"
+                  }`}
+              >
+                {uploadFile ? (
+                  <>
+                    <FileText className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+                    <span className="text-xs font-bold text-emerald-700 dark:text-emerald-300">{uploadFile.name}</span>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400">
+                      {(uploadFile.size / 1024 / 1024).toFixed(2)} MB — click to select another
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-6 w-6 text-slate-400" />
+                    <span className="text-xs font-semibold text-slate-600 dark:text-slate-300">
+                      Click or drag a <strong>.txt</strong> file here
+                    </span>
+                    <span className="text-[11px] text-slate-400">One MTN number per line · up to 200 MB</span>
+                  </>
+                )}
+                <input
+                  id="bulkFile"
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".txt,text/plain"
+                  className="sr-only"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] ?? null;
+                    setUploadFile(f);
+                    setUploadResult(null);
+                  }}
+                  disabled={uploading}
+                />
+              </label>
+
+              <Button
+                type="button"
+                onClick={handleFileUpload}
+                disabled={uploading || !uploadFile}
+                className="w-full h-11 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 font-bold text-white shadow-md shadow-emerald-600/20 hover:from-emerald-500 hover:to-teal-500 active:scale-[0.99] transition"
+              >
+                {uploading ? (
+                  <><Spinner className="h-4 w-4 mr-2" />Uploading &amp; Validating…</>
+                ) : (
+                  <><Upload className="h-4 w-4 mr-1.5" />Upload &amp; Submit Numbers</>
+                )}
               </Button>
             </div>
-            <p className="text-[11px] text-slate-400">
-              Accepts 024XXXXXXX, 233XXXXXXXXX, or +233XXXXXXXXX format.
-            </p>
           </div>
-
-          {submissionFeedback && (
-            <div
-              className={`rounded-xl p-3.5 text-xs font-medium flex items-start gap-2 ${
-                submissionFeedback.type === "verified"
-                  ? "bg-emerald-50 text-emerald-800 border border-emerald-200 dark:bg-emerald-500/10 dark:text-emerald-300 dark:border-emerald-500/30"
-                  : submissionFeedback.type === "pending"
-                  ? "bg-amber-50 text-amber-800 border border-amber-200 dark:bg-amber-500/10 dark:text-amber-300 dark:border-amber-500/30"
-                  : submissionFeedback.type === "success"
-                  ? "bg-blue-50 text-blue-800 border border-blue-200 dark:bg-blue-500/10 dark:text-blue-300 dark:border-blue-500/30"
-                  : "bg-red-50 text-red-800 border border-red-200 dark:bg-red-500/10 dark:text-red-300 dark:border-red-500/30"
-              }`}
-            >
-              {submissionFeedback.type === "verified" && <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-emerald-600" />}
-              {submissionFeedback.type === "pending" && <Clock className="h-4 w-4 shrink-0 mt-0.5 text-amber-600" />}
-              {submissionFeedback.type === "success" && <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5 text-blue-600" />}
-              {submissionFeedback.type === "error" && <AlertCircle className="h-4 w-4 shrink-0 mt-0.5 text-red-600" />}
-              <span>{submissionFeedback.message}</span>
-            </div>
-          )}
-        </form>
-      </div>
-
-      {/* Bulk TXT Upload Card */}
-      <div className="rounded-2xl border border-slate-100 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <h2 className="text-base font-semibold text-slate-900 dark:text-white flex items-center gap-2">
-          <Upload className="h-4 w-4 text-brand-600" />
-          Bulk Upload via TXT File
-        </h2>
-        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-          Upload a plain-text file (.txt) with one MTN number per line to submit multiple numbers at once. Supports files over 50 MB.
-        </p>
-
-        <div className="mt-5 space-y-3 max-w-md">
-          {/* Drop / click area */}
-          <label
-            htmlFor="bulkFile"
-            className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed p-6 cursor-pointer transition
-              ${uploadFile
-                ? "border-brand-400 bg-brand-50 dark:border-brand-500 dark:bg-brand-500/10"
-                : "border-slate-200 bg-slate-50 hover:border-brand-400 hover:bg-brand-50 dark:border-slate-700 dark:bg-slate-800/50 dark:hover:border-brand-500"
-              }`}
-          >
-            {uploadFile ? (
-              <>
-                <FileText className="h-6 w-6 text-brand-600 dark:text-brand-400" />
-                <span className="text-xs font-semibold text-brand-700 dark:text-brand-300">{uploadFile.name}</span>
-                <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                  {(uploadFile.size / 1024 / 1024).toFixed(2)} MB — click to change
-                </span>
-              </>
-            ) : (
-              <>
-                <Upload className="h-6 w-6 text-slate-400" />
-                <span className="text-xs text-slate-500 dark:text-slate-400">
-                  Click or drag a <strong>.txt</strong> file here
-                </span>
-                <span className="text-[11px] text-slate-400">One MTN number per line · up to 200 MB</span>
-              </>
-            )}
-            <input
-              id="bulkFile"
-              ref={fileInputRef}
-              type="file"
-              accept=".txt,text/plain"
-              className="sr-only"
-              onChange={(e) => {
-                const f = e.target.files?.[0] ?? null;
-                setUploadFile(f);
-                setUploadResult(null);
-              }}
-              disabled={uploading}
-            />
-          </label>
-
-          <Button
-            type="button"
-            onClick={handleFileUpload}
-            disabled={uploading || !uploadFile}
-            className="w-full"
-          >
-            {uploading ? (
-              <><Spinner className="h-4 w-4 mr-2" />Uploading…</>
-            ) : (
-              <><Upload className="h-4 w-4 mr-1.5" />Upload &amp; Submit Numbers</>
-            )}
-          </Button>
-        </div>
 
         {/* Upload result summary */}
         {uploadResult && (
-          <div className="mt-5 max-w-md rounded-xl border border-slate-100 bg-slate-50 p-4 dark:border-slate-700 dark:bg-slate-800/60 space-y-3">
-            <p className={`text-sm font-semibold ${uploadResult.submitted > 0 ? "text-emerald-700 dark:text-emerald-400" : "text-slate-700 dark:text-slate-300"}`}>
+          <div className="mt-5 rounded-2xl border border-slate-200/90 bg-white/95 p-4.5 dark:border-white/10 dark:bg-white/[0.03] space-y-3.5 shadow-sm">
+            <p className={`text-sm font-bold ${uploadResult.submitted > 0 ? "text-emerald-700 dark:text-emerald-300" : "text-slate-800 dark:text-slate-200"}`}>
               {uploadResult.message}
             </p>
-            <div className="grid grid-cols-2 gap-2 text-xs">
-              <div className="rounded-lg bg-emerald-50 dark:bg-emerald-500/10 p-2.5">
-                <p className="text-emerald-600 dark:text-emerald-400 font-medium">Submitted</p>
-                <p className="text-2xl font-bold text-emerald-700 dark:text-emerald-300">{uploadResult.submitted}</p>
+            <div className="grid grid-cols-2 gap-2.5 text-xs">
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3">
+                <p className="text-emerald-700 dark:text-emerald-300 font-bold uppercase tracking-wider text-[10px]">Submitted</p>
+                <p className="font-mono text-2xl font-black text-emerald-700 dark:text-emerald-300 tabular-nums mt-0.5">{uploadResult.submitted}</p>
               </div>
-              <div className="rounded-lg bg-amber-50 dark:bg-amber-500/10 p-2.5">
-                <p className="text-amber-600 dark:text-amber-400 font-medium">Already Pending</p>
-                <p className="text-2xl font-bold text-amber-700 dark:text-amber-300">{uploadResult.alreadyPending}</p>
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
+                <p className="text-amber-700 dark:text-amber-300 font-bold uppercase tracking-wider text-[10px]">Already Pending</p>
+                <p className="font-mono text-2xl font-black text-amber-700 dark:text-amber-300 tabular-nums mt-0.5">{uploadResult.alreadyPending}</p>
               </div>
-              <div className="rounded-lg bg-blue-50 dark:bg-blue-500/10 p-2.5">
-                <p className="text-blue-600 dark:text-blue-400 font-medium">Already Verified</p>
-                <p className="text-2xl font-bold text-blue-700 dark:text-blue-300">{uploadResult.alreadyVerified}</p>
+              <div className="rounded-xl border border-blue-500/20 bg-blue-500/10 p-3">
+                <p className="text-blue-700 dark:text-blue-300 font-bold uppercase tracking-wider text-[10px]">Already Verified</p>
+                <p className="font-mono text-2xl font-black text-blue-700 dark:text-blue-300 tabular-nums mt-0.5">{uploadResult.alreadyVerified}</p>
               </div>
-              <div className="rounded-lg bg-red-50 dark:bg-red-500/10 p-2.5">
-                <p className="text-red-600 dark:text-red-400 font-medium">Invalid / Skipped</p>
-                <p className="text-2xl font-bold text-red-700 dark:text-red-300">{uploadResult.invalidCount + uploadResult.failed}</p>
+              <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 p-3">
+                <p className="text-rose-700 dark:text-rose-300 font-bold uppercase tracking-wider text-[10px]">Invalid / Skipped</p>
+                <p className="font-mono text-2xl font-black text-rose-700 dark:text-rose-300 tabular-nums mt-0.5">{uploadResult.invalidCount + uploadResult.failed}</p>
               </div>
             </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+            <p className="text-[11px] font-medium text-slate-500 dark:text-slate-400">
               Total rows parsed: {uploadResult.totalRows} · Duplicates in file: {uploadResult.duplicateCount}
             </p>
             {uploadResult.errors && uploadResult.errors.length > 0 && (
@@ -428,12 +464,13 @@ export default function UserMtnVerificationPage() {
           </div>
         )}
       </div>
+    </div>
 
       {/* Submitted Requests List */}
       <div className="space-y-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-base font-semibold text-slate-900 dark:text-white">
+            <h2 className="text-base font-bold text-slate-900 dark:text-white">
               Your Submitted MTN Numbers
             </h2>
             <p className="text-xs text-slate-500 dark:text-slate-400">
@@ -443,20 +480,20 @@ export default function UserMtnVerificationPage() {
 
           <div className="flex items-center gap-2">
             <div className="relative">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
                 placeholder="Search number..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="h-8.5 w-44 rounded-xl border border-slate-200 bg-white pl-8 pr-3 text-xs text-slate-900 placeholder:text-slate-400 shadow-sm focus:border-brand-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500 caret-brand-600 dark:caret-brand-400"
+                className="h-10 w-48 rounded-xl border border-slate-200 bg-white pl-9 pr-3 text-xs text-slate-900 placeholder:text-slate-400 shadow-sm focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 focus:outline-none dark:border-white/10 dark:bg-[#0b1322] dark:text-slate-100 dark:placeholder:text-slate-500"
               />
             </div>
 
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="h-8.5 rounded-xl border border-slate-200 bg-white px-3 text-xs text-slate-900 shadow-sm focus:border-brand-500 focus:outline-none dark:border-slate-800 dark:bg-slate-900 dark:text-slate-100 [&>option]:bg-white dark:[&>option]:bg-slate-900"
+              className="h-10 rounded-xl border border-slate-200 bg-white px-3 text-xs text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none dark:border-white/10 dark:bg-[#0b1322] dark:text-slate-100 [&>option]:bg-white dark:[&>option]:bg-[#0b1322]"
             >
               <option value="ALL">All Statuses</option>
               <option value="SUBMITTED">Submitted</option>
@@ -470,39 +507,41 @@ export default function UserMtnVerificationPage() {
               size="sm"
               onClick={() => fetchItems()}
               title="Refresh"
-              className="h-8.5 w-8.5 p-0 shrink-0"
+              className="h-10 w-10 p-0 shrink-0 rounded-xl border-slate-200 dark:border-white/10"
             >
-              <RefreshCw className={`h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
+              <RefreshCw className={`h-4 w-4 text-emerald-600 dark:text-emerald-400 ${loading ? "animate-spin" : ""}`} />
             </Button>
           </div>
         </div>
 
         {loading && items.length === 0 ? (
-          <div className="flex justify-center py-16">
-            <Spinner className="h-6 w-6 text-brand-600" />
+          <div className="flex justify-center py-20">
+            <Spinner className="h-7 w-7 text-emerald-600" />
           </div>
         ) : items.length === 0 ? (
-          <EmptyState
-            title="No numbers submitted yet"
-            description="Submit an MTN phone number above to start verification."
-            icon={ShieldCheck}
-          />
+          <div className="rounded-3xl border border-slate-200/90 bg-white/90 p-8 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90">
+            <EmptyState
+              title="No numbers submitted yet"
+              description="Submit an MTN phone number above to start verification."
+              icon={ShieldCheck}
+            />
+          </div>
         ) : (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-3.5 sm:grid-cols-2 lg:grid-cols-3">
             {items.map((item) => (
               <div
                 key={item.id}
-                className="flex flex-col justify-between rounded-2xl border border-slate-100 bg-white p-4 shadow-sm transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900"
+                className="flex flex-col justify-between rounded-3xl border border-slate-200/90 bg-white/90 p-5 shadow-sm transition hover:border-emerald-500/40 hover:shadow-md dark:border-white/10 dark:bg-[#0b1322]/90"
               >
                 <div>
                   <div className="flex items-center justify-between">
-                    <span className="font-mono text-base font-bold text-slate-900 dark:text-white">
+                    <span className="font-mono text-base font-black text-slate-900 dark:text-white">
                       {item.number}
                     </span>
                     {getStatusBadge(item)}
                   </div>
 
-                  <div className="mt-3 space-y-1 text-xs text-slate-500 dark:text-slate-400">
+                  <div className="mt-3.5 space-y-1.5 text-xs text-slate-500 dark:text-slate-400">
                     <div className="flex items-center justify-between">
                       <span>Submitted:</span>
                       <span className="font-medium text-slate-700 dark:text-slate-300">
@@ -512,22 +551,22 @@ export default function UserMtnVerificationPage() {
 
                     {item.status === "VERIFIED" && item.verifiedAt && (
                       <div className="flex items-center justify-between text-emerald-700 dark:text-emerald-400">
-                        <span>Verified on:</span>
-                        <span className="font-medium">
+                        <span className="font-semibold">Verified on:</span>
+                        <span className="font-bold">
                           {formatDateTime(item.verifiedAt)}
                         </span>
                       </div>
                     )}
 
                     {item.status === "PROCESSING" && (
-                      <div className="text-blue-600 dark:text-blue-400 text-[11px] font-medium mt-1">
+                      <div className="text-blue-600 dark:text-blue-400 text-[11px] font-semibold mt-1">
                         Waiting for MTN portal confirmation
                       </div>
                     )}
 
                     {item.status === "REJECTED" && (
-                      <div className="mt-2 rounded-lg bg-red-50 p-2 text-[11px] text-red-700 dark:bg-red-500/10 dark:text-red-300">
-                        <span className="font-semibold">Reason: </span>
+                      <div className="mt-2 rounded-xl bg-red-500/10 border border-red-500/20 p-2.5 text-[11px] text-red-700 dark:text-red-300">
+                        <span className="font-bold">Reason: </span>
                         {item.rejectionReason || "Verification unsuccessful"}
                       </div>
                     )}
@@ -535,17 +574,17 @@ export default function UserMtnVerificationPage() {
                 </div>
 
                 {item.status === "REJECTED" && (
-                  <div className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+                  <div className="mt-3.5 pt-3 border-t border-slate-100 dark:border-white/5 flex justify-end">
                     <Button
                       variant="outline"
                       size="sm"
-                      className="text-xs h-7"
+                      className="text-xs h-8 rounded-lg border-emerald-500/30 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-500/10 font-bold"
                       onClick={() => {
                         setPhoneNumber(item.number);
                         window.scrollTo({ top: 0, behavior: "smooth" });
                       }}
                     >
-                      Resubmit
+                      Resubmit Number
                     </Button>
                   </div>
                 )}

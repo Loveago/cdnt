@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { KeyRound, Save, UserRound } from "lucide-react";
+import { KeyRound, Save, UserRound, Shield, CheckCircle2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label } from "@/components/ui/input";
 import { Spinner } from "@/components/shared";
@@ -57,7 +57,7 @@ export function ProfileForms({ initial }: { initial: Initial }) {
       toast(
         newPassword
           ? "Profile & password updated — other sessions signed out"
-          : "Profile updated",
+          : "Profile updated successfully",
         "success"
       );
       setCurrentPassword("");
@@ -70,29 +70,54 @@ export function ProfileForms({ initial }: { initial: Initial }) {
   };
 
   const inputCls =
-    "rounded-xl border-slate-200 bg-white dark:border-white/10 dark:bg-white/5";
+    "h-10 rounded-xl border-slate-200/90 bg-slate-50/50 text-sm font-medium focus-visible:ring-emerald-500 dark:border-white/10 dark:bg-white/5";
 
   return (
-    <form onSubmit={save} className="space-y-5">
+    <form onSubmit={save} className="space-y-6">
       {/* Account details */}
-      <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm dark:border-white/5 dark:bg-[#0d1526]">
-        <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3 dark:border-white/5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-500/10 text-blue-500">
+      <div className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white/90 p-5 sm:p-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90">
+        <div className="flex items-center gap-3 border-b border-slate-100 pb-4 dark:border-white/5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
             <UserRound className="h-4 w-4" />
           </span>
-          <h3 className="text-sm font-bold">Account Details</h3>
+          <div>
+            <h3 className="text-sm font-black text-slate-900 dark:text-white">Account Details</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Update your primary identification and contact information
+            </p>
+          </div>
         </div>
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">
-            <Label htmlFor="name">Full name</Label>
-            <Input id="name" className={inputCls} value={name} onChange={(e) => setName(e.target.value)} required />
+            <Label htmlFor="name" className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              Full Name
+            </Label>
+            <Input
+              id="name"
+              className={inputCls}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="email">Email address</Label>
-            <Input id="email" type="email" className={inputCls} value={email} onChange={(e) => setEmail(e.target.value)} required />
+            <Label htmlFor="email" className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              Email Address
+            </Label>
+            <Input
+              id="email"
+              type="email"
+              className={inputCls}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+            />
           </div>
           <div className="space-y-1.5 sm:col-span-2">
-            <Label htmlFor="phone">Phone number</Label>
+            <Label htmlFor="phone" className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              Phone Number
+            </Label>
             <Input
               id="phone"
               type="tel"
@@ -102,47 +127,103 @@ export function ProfileForms({ initial }: { initial: Initial }) {
               onChange={(e) => setPhone(e.target.value)}
               maxLength={20}
             />
-            <p className="text-[11px] text-slate-400">Used for order notifications and account verification.</p>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              Used for account verification, urgent delivery alerts, and billing receipts.
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Security */}
-      <div className="rounded-2xl border border-slate-200/70 bg-white p-5 shadow-sm dark:border-white/5 dark:bg-[#0d1526]">
-        <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3 dark:border-white/5">
-          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/10 text-violet-500">
+      {/* Security & Password */}
+      <div className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white/90 p-5 sm:p-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90">
+        <div className="flex items-center gap-3 border-b border-slate-100 pb-4 dark:border-white/5">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-teal-500/20 bg-teal-500/10 text-teal-600 dark:text-teal-400">
             <KeyRound className="h-4 w-4" />
           </span>
           <div>
-            <h3 className="text-sm font-bold">Security</h3>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400">Change your password — optional</p>
+            <h3 className="text-sm font-black text-slate-900 dark:text-white">Security &amp; Password</h3>
+            <p className="text-xs text-slate-500 dark:text-slate-400">
+              Leave blank if you do not wish to change your existing password
+            </p>
           </div>
         </div>
-        <div className="mt-4 grid gap-4 sm:grid-cols-3">
+
+        <div className="mt-5 grid gap-4 sm:grid-cols-3">
           <div className="space-y-1.5">
-            <Label htmlFor="currentPassword">Current password</Label>
-            <Input id="currentPassword" type="password" autoComplete="current-password" className={inputCls} value={currentPassword} onChange={(e) => setCurrentPassword(e.target.value)} />
+            <Label
+              htmlFor="currentPassword"
+              className="text-xs font-bold text-slate-700 dark:text-slate-300"
+            >
+              Current Password
+            </Label>
+            <Input
+              id="currentPassword"
+              type="password"
+              autoComplete="current-password"
+              placeholder="••••••••"
+              className={inputCls}
+              value={currentPassword}
+              onChange={(e) => setCurrentPassword(e.target.value)}
+            />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="newPassword">New password</Label>
-            <Input id="newPassword" type="password" autoComplete="new-password" className={inputCls} value={newPassword} onChange={(e) => setNewPassword(e.target.value)} />
+            <Label htmlFor="newPassword" className="text-xs font-bold text-slate-700 dark:text-slate-300">
+              New Password
+            </Label>
+            <Input
+              id="newPassword"
+              type="password"
+              autoComplete="new-password"
+              placeholder="Min 8 characters"
+              className={inputCls}
+              value={newPassword}
+              onChange={(e) => setNewPassword(e.target.value)}
+            />
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="confirmPassword">Confirm new password</Label>
-            <Input id="confirmPassword" type="password" autoComplete="new-password" className={inputCls} value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} />
+            <Label
+              htmlFor="confirmPassword"
+              className="text-xs font-bold text-slate-700 dark:text-slate-300"
+            >
+              Confirm Password
+            </Label>
+            <Input
+              id="confirmPassword"
+              type="password"
+              autoComplete="new-password"
+              placeholder="Confirm new"
+              className={inputCls}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+            />
           </div>
         </div>
+
         {pwError && (
-          <p className="mt-3 rounded-lg bg-red-500/10 px-3 py-2 text-xs font-medium text-red-600 dark:text-red-400">
+          <div className="mt-4 rounded-xl border border-rose-500/20 bg-rose-500/10 p-3 text-xs font-semibold text-rose-600 dark:border-rose-500/30 dark:text-rose-400">
             {pwError}
-          </p>
+          </div>
         )}
-        <p className="mt-3 text-[11px] text-slate-400">
-          Changing your password signs out all other sessions for security.
-        </p>
-        <Button type="submit" disabled={saving} className="mt-4">
-          {saving ? <Spinner /> : <Save className="h-4 w-4" />} Save changes
-        </Button>
+
+        <div className="mt-4 flex items-center gap-2 rounded-xl border border-slate-200/80 bg-slate-50/70 p-3 text-[11px] text-slate-600 dark:border-white/5 dark:bg-white/[0.02] dark:text-slate-400">
+          <Shield className="h-4 w-4 shrink-0 text-emerald-500" />
+          <span>For security purposes, updating your password will automatically sign out any other active sessions.</span>
+        </div>
+
+        <div className="mt-6 flex justify-end border-t border-slate-100 pt-4 dark:border-white/5">
+          <Button
+            type="submit"
+            disabled={saving}
+            className="rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 px-6 py-2.5 font-bold text-white shadow-md shadow-emerald-600/20 hover:from-emerald-500 hover:to-teal-500 transition active:scale-[0.99] disabled:opacity-50"
+          >
+            {saving ? (
+              <Spinner className="mr-2 h-4 w-4" />
+            ) : (
+              <Save className="mr-2 h-4 w-4" />
+            )}
+            Save Changes
+          </Button>
+        </div>
       </div>
     </form>
   );

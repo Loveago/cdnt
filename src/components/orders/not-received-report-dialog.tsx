@@ -93,7 +93,7 @@ export function NotReceivedReportDetailDialog({
       <Dialog
         open={open}
         onClose={onClose}
-        title={report ? `Not Received Report ${report.code}` : "Not Received Report"}
+        title={report ? `Order Report ${report.code}` : "Order Report"}
         className="max-w-xl max-h-[82vh] sm:max-h-[85vh]"
       >
         {loading || !report ? (

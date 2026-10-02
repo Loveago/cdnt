@@ -39,13 +39,24 @@ export default async function StorefrontProductsPage() {
   });
 
   return (
-    <div className="space-y-6 p-4 sm:p-6">
-      <header>
-        <h1 className="text-xl font-bold text-slate-900 dark:text-white">Products &amp; Pricing</h1>
-        <p className="text-sm text-slate-500 dark:text-slate-400">
-          Set your retail price per bundle. Commission = your price − cost, credited to your wallet automatically.
-        </p>
-      </header>
+    <div className="space-y-6">
+      <div className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white/90 p-5 sm:p-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90">
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              Retail Pricing Engine
+            </span>
+            <span className="text-[10px] font-bold text-slate-400">· Instant Commission Clearing</span>
+          </div>
+          <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+            Products &amp; Pricing
+          </h1>
+          <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-2xl leading-relaxed">
+            Customize the retail price for each bundle listed on your storefront. Your profit margin (Retail Price − Wholesale Cost) is automatically credited to your payout wallet on every buyer checkout.
+          </p>
+        </div>
+      </div>
       <PricingEditor
         packages={packagesWithCost}
         products={products.map((p) => ({

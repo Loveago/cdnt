@@ -18,40 +18,40 @@ export default async function StorePendingPage() {
   const pending = storefront.status === "PENDING";
 
   return (
-    <div className="mx-auto max-w-lg p-4 sm:p-6">
+    <div className="mx-auto max-w-lg space-y-6 py-6">
       <div
-        className={`rounded-2xl border p-6 text-center ${
+        className={`rounded-3xl border p-6 sm:p-8 text-center backdrop-blur-xl shadow-sm ${
           pending
-            ? "border-sky-200 bg-sky-50 dark:border-sky-500/30 dark:bg-sky-500/10"
-            : "border-red-200 bg-red-50 dark:border-red-500/30 dark:bg-red-500/10"
+            ? "border-sky-500/30 bg-sky-50/80 dark:border-sky-500/20 dark:bg-sky-500/[0.08]"
+            : "border-red-500/30 bg-red-50/80 dark:border-red-500/20 dark:bg-red-500/[0.08]"
         }`}
       >
         <span
-          className={`mx-auto inline-flex h-14 w-14 items-center justify-center rounded-2xl ${
+          className={`mx-auto inline-flex h-14 w-14 items-center justify-center rounded-2xl shadow-md ${
             pending
-              ? "bg-sky-100 text-sky-600 dark:bg-sky-500/15 dark:text-sky-300"
-              : "bg-red-100 text-red-600 dark:bg-red-500/15 dark:text-red-300"
+              ? "bg-sky-500/15 text-sky-600 dark:bg-sky-500/20 dark:text-sky-300 shadow-sky-500/10"
+              : "bg-red-500/15 text-red-600 dark:bg-red-500/20 dark:text-red-300 shadow-red-500/10"
           }`}
         >
           {pending ? <Clock className="h-7 w-7" /> : <XCircle className="h-7 w-7" />}
         </span>
-        <h1 className="mt-4 text-xl font-bold text-slate-900 dark:text-white">
-          {pending ? "Application under review" : "Application not approved"}
+        <h1 className="mt-4 text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+          {pending ? "Application Under Review" : "Application Not Approved"}
         </h1>
-        <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
+        <p className="mt-2 text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed max-w-md mx-auto">
           {pending
-            ? `We're reviewing “${storefront.name}”. You'll be able to manage your store here as soon as it's approved.`
+            ? `We're currently reviewing “${storefront.name}”. Once verified, your public storefront will be activated instantly.`
             : storefront.rejectionNote
-              ? `“${storefront.name}” was not approved. Reason: ${storefront.rejectionNote}`
+              ? `“${storefront.name}” was not approved. Feedback: ${storefront.rejectionNote}`
               : `“${storefront.name}” was not approved.`}
         </p>
         {pending && (
-          <div className="mx-auto mt-5 flex max-w-xs items-center justify-center gap-2 rounded-full bg-white px-4 py-2 text-xs font-semibold text-slate-500 shadow-sm dark:bg-white/10 dark:text-slate-300">
+          <div className="mx-auto mt-6 flex max-w-xs items-center justify-center gap-2 rounded-full border border-sky-500/20 bg-white/80 px-4 py-2 text-xs font-bold text-slate-700 shadow-sm dark:bg-white/10 dark:text-slate-200">
             <span className="relative flex h-2 w-2">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-sky-400 opacity-75" />
               <span className="relative inline-flex h-2 w-2 rounded-full bg-sky-500" />
             </span>
-            Status: {storefront.status}
+            Application Status: PENDING REVIEW
           </div>
         )}
       </div>
