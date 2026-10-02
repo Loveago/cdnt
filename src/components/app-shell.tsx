@@ -38,6 +38,7 @@ import { formatGHS, canAccessDeveloperApi, type AuthUser } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import { SystemChatWidget } from "@/components/chat/system-chat-widget";
 import { UserWalkthrough, TourLauncherButton } from "@/components/onboarding/user-walkthrough";
+import { NotificationCenter } from "@/components/notifications/notification-center";
 
 /** Seconds elapsed since the last user interaction (mouse, key, scroll, touch). */
 function useIdleSeconds() {
@@ -296,7 +297,7 @@ export function AppShell({
       {announcement && <AnnouncementBar text={announcement} />}
 
       {/* Top Command Bar Header */}
-      <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur-2xl dark:border-white/[0.08] dark:bg-[#070c14]/90">
+      <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur-2xl dark:border-white/[0.08] dark:bg-[#070c14]/90 before:absolute before:inset-x-0 before:top-0 before:h-[2px] before:bg-gradient-to-r before:from-emerald-500 before:via-teal-400 before:to-emerald-600">
         <div className="mx-auto flex h-14 w-full max-w-[1536px] items-center justify-between px-3 sm:px-6">
           <div className="flex items-center gap-3">
             {/* Mobile Drawer Trigger Button */}
@@ -311,10 +312,13 @@ export function AppShell({
 
             <BrandLogo href={admin ? "/admin" : "/dashboard/buy-now"} size="sm" />
 
-            <div className="hidden lg:flex items-center gap-2 pl-3">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                Switch Live
+            <div className="hidden md:flex items-center gap-2 pl-3 border-l border-slate-200/80 dark:border-white/10">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-extrabold tracking-tight text-emerald-700 dark:text-emerald-300">
+                <span className="relative flex h-2 w-2">
+                  <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+                  <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+                </span>
+                Direct Switch · 0s Delay
               </span>
             </div>
 
@@ -322,28 +326,42 @@ export function AppShell({
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">
-            {/* Desktop Available Balance & Subtle Top Up (User Dashboard) */}
+            {/* Mobile Compact Balance */}
             {!admin && (
-              <div className="flex items-center gap-1.5 sm:gap-2 rounded-2xl border border-slate-200/80 bg-slate-50/90 p-1 text-xs dark:border-white/10 dark:bg-white/5">
+              <Link
+                href="/dashboard/billing"
+                className="flex sm:hidden items-center gap-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-black text-slate-900 dark:text-white"
+                title="View wallet & billing"
+              >
+                <div className="flex h-4 w-4 items-center justify-center rounded-md bg-emerald-500/20 text-emerald-600 dark:text-emerald-400">
+                  <Wallet className="h-2.5 w-2.5" />
+                </div>
+                <span className="font-mono">{formatGHS(balance)}</span>
+              </Link>
+            )}
+
+            {/* Desktop Available Balance & Distinctive Top Up (User Dashboard) */}
+            {!admin && (
+              <div className="hidden sm:flex items-center gap-1.5 sm:gap-2 rounded-2xl border border-slate-200/90 bg-white/80 p-1 text-xs shadow-xs dark:border-white/10 dark:bg-white/[0.04] backdrop-blur-md">
                 <Link
                   href="/dashboard/billing"
-                  className="flex items-center gap-1.5 sm:gap-2 whitespace-nowrap rounded-xl px-2 sm:px-2.5 py-1 transition-colors hover:bg-slate-100 dark:hover:bg-white/10"
+                  className="flex items-center gap-2 whitespace-nowrap rounded-xl px-2.5 py-1 transition-colors hover:bg-slate-100 dark:hover:bg-white/10"
                   title="View wallet & billing"
                 >
                   <div className="flex h-5 w-5 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
                     <Wallet className="h-3 w-3" />
                   </div>
-                  <span className="font-black tabular-nums text-slate-900 dark:text-white text-xs sm:text-sm">
+                  <span className="font-mono font-black tabular-nums text-slate-900 dark:text-white text-xs sm:text-sm">
                     {formatGHS(balance)}
                   </span>
                 </Link>
                 <Link
                   href="/dashboard/billing"
-                  className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-2.5 sm:px-3 py-1 text-[11px] font-black text-slate-950 shadow-xs transition hover:from-emerald-400 hover:to-teal-500 active:scale-95"
+                  className="flex shrink-0 items-center gap-1 whitespace-nowrap rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-3 py-1.5 text-[11px] font-black text-slate-950 shadow-sm transition hover:from-emerald-400 hover:to-teal-500 active:scale-95"
                   title="Top up wallet balance"
                 >
                   <Plus className="h-3 w-3 stroke-[3]" />
-                  <span className="hidden sm:inline">Top up</span>
+                  <span>Top up</span>
                 </Link>
               </div>
             )}
@@ -359,6 +377,13 @@ export function AppShell({
                 <ArrowUpRight className="h-3 w-3" />
               </Link>
             )}
+
+            {/* Notification Center */}
+            <NotificationCenter
+              user={user}
+              admin={admin}
+              announcement={announcement}
+            />
 
             <div className="hidden sm:flex items-center gap-1.5">
               <ThemeToggle />

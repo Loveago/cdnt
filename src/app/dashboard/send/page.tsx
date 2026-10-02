@@ -4,8 +4,14 @@ import * as React from "react";
 import Link from "next/link";
 import { useToast } from "@/components/toast";
 import { QueueList, SendSummary, type Line } from "@/components/send/queue-list";
-import { NETWORKS, formatGHS } from "@/lib/types";
-import { NETWORK_LABELS, parseOrderLine, normalizeTextNumbers, splitOrderLines, isHeaderLine } from "@/lib/order-parse";
+import { NETWORKS, formatGHS, type NetworkProvider } from "@/lib/types";
+import {
+  NETWORK_LABELS,
+  parseOrderLine,
+  normalizeTextNumbers,
+  splitOrderLines,
+  isHeaderLine,
+} from "@/lib/order-parse";
 import { isMtnPrefix, detectNetworkNameByPrefix } from "@/lib/phone-utils";
 import { cn } from "@/lib/utils";
 import { Dialog } from "@/components/ui/dialog";
@@ -17,6 +23,7 @@ import {
   ClipboardPaste,
   Copy,
   Download,
+  FileSpreadsheet,
   FileUp,
   Loader2,
   Send,
@@ -24,6 +31,14 @@ import {
   Trash2,
   UploadCloud,
   Wallet,
+  CheckCircle2,
+  Zap,
+  Sparkles,
+  Radio,
+  ArrowUpRight,
+  Info,
+  Layers,
+  HelpCircle,
 } from "lucide-react";
 
 interface Pkg {
@@ -47,8 +62,8 @@ export default function SendOrderPage() {
   const [packages, setPackages] = React.useState<Pkg[]>([]);
   const [submissionEnabled, setSubmissionEnabled] = React.useState(true);
   const [loading, setLoading] = React.useState(true);
-  const [network, setNetwork] = React.useState<string>("MTN");
-  const [tab, setTab] = React.useState<"upload" | "paste">("upload");
+  const [network, setNetwork] = React.useState<NetworkProvider>("MTN");
+  const [tab, setTab] = React.useState<"paste" | "upload">("paste");
   const [bulkText, setBulkText] = React.useState("");
   const [fileName, setFileName] = React.useState<string | null>(null);
   const [uploading, setUploading] = React.useState(false);
@@ -131,6 +146,25 @@ export default function SendOrderPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Compute available networks strictly from active packages (0 packages = excluded!)
+  const availableNetworks = React.useMemo(() => {
+    if (loading) return [];
+    const present = new Set(
+      packages
+        .filter((p) => p.price == null || p.price > 0)
+        .map((p) => p.network)
+    );
+    return NETWORKS.filter((n) => present.has(n));
+  }, [packages, loading]);
+
+  // Safe active network resolution: always falls back to the first available network
+  // if current selection is disabled or not in availableNetworks
+  const activeNetwork: NetworkProvider = React.useMemo(() => {
+    if (availableNetworks.length === 0) return network;
+    if (availableNetworks.includes(network)) return network;
+    return availableNetworks[0];
+  }, [network, availableNetworks]);
+
   // Restore draft from localStorage on mount
   React.useEffect(() => {
     if (typeof window === "undefined") return;
@@ -145,8 +179,8 @@ export default function SendOrderPage() {
         if (Array.isArray(parsed.lines) && parsed.lines.length > 0) {
           setLines(parsed.lines);
         }
-        if (parsed.network && NETWORKS.includes(parsed.network)) {
-          setNetwork(parsed.network);
+        if (parsed.network && NETWORKS.includes(parsed.network as NetworkProvider)) {
+          setNetwork(parsed.network as NetworkProvider);
         }
       }
     } catch {
@@ -162,7 +196,7 @@ export default function SendOrderPage() {
       if (bulkText.trim() || lines.length > 0) {
         localStorage.setItem(
           DRAFT_STORAGE_KEY,
-          JSON.stringify({ bulkText, lines, network })
+          JSON.stringify({ bulkText, lines, network: activeNetwork })
         );
       } else {
         localStorage.removeItem(DRAFT_STORAGE_KEY);
@@ -170,15 +204,37 @@ export default function SendOrderPage() {
     } catch {
       // ignore
     }
-  }, [bulkText, lines, network, draftLoaded]);
+  }, [bulkText, lines, activeNetwork, draftLoaded]);
 
-  // If the selected network has no packages, fall back to the first one that does.
+  // If the selected network has no packages (disabled), synchronize state immediately!
   React.useEffect(() => {
-    if (loading || !packages.length) return;
-    if (packages.some((p) => p.network === network)) return;
-    const first = NETWORKS.find((n) => packages.some((p) => p.network === n));
-    if (first) setNetwork(first);
-  }, [packages, loading, network]);
+    if (loading || !packages.length || !availableNetworks.length) return;
+    if (network !== activeNetwork) {
+      setNetwork(activeNetwork);
+    }
+  }, [packages, loading, network, activeNetwork, availableNetworks]);
+
+  // Identify any queued orders whose network or package has been disabled by admin
+  const unavailableIndices = React.useMemo(() => {
+    if (loading || packages.length === 0) return new Set<number>();
+    const indices = new Set<number>();
+    lines.forEach((line, idx) => {
+      const isNetActive = availableNetworks.includes(line.network as NetworkProvider);
+      const isPkgActive = packages.some(
+        (p) => p.network === line.network && p.gbAmount === line.gbAmount && (p.price == null || p.price > 0)
+      );
+      if (!isNetActive || !isPkgActive) {
+        indices.add(idx);
+      }
+    });
+    return indices;
+  }, [lines, availableNetworks, packages, loading]);
+
+  const removeUnavailableLines = React.useCallback(() => {
+    if (unavailableIndices.size === 0) return;
+    setLines((ls) => ls.filter((_, idx) => !unavailableIndices.has(idx)));
+    toast(`Removed ${unavailableIndices.size} disabled/unavailable order(s)`, "info");
+  }, [unavailableIndices, toast]);
 
   const checkPortedAndAdd = (items: Line[], skipped = 0) => {
     // Check for non-standard MTN prefixes (potentially ported numbers)
@@ -410,7 +466,7 @@ export default function SendOrderPage() {
     let skipped = 0;
     rawLines.forEach((line) => {
       if (isHeaderLine(line)) return;
-      const parsedLine = parseOrderLine(line, packages, network);
+      const parsedLine = parseOrderLine(line, packages, activeNetwork);
       if (parsedLine) parsed.push(parsedLine);
       else skipped++;
     });
@@ -445,7 +501,7 @@ export default function SendOrderPage() {
         if (!rawLine) continue;
         const line = normalizeTextNumbers(rawLine);
         if (isHeaderLine(line)) continue;
-        const parsedLine = parseOrderLine(line, packages, network);
+        const parsedLine = parseOrderLine(line, packages, activeNetwork);
         if (parsedLine) parsed.push(parsedLine);
         else skipped++;
       }
@@ -465,6 +521,7 @@ export default function SendOrderPage() {
   };
 
   const total = lines.reduce((s, l) => s + (l.price ?? 0), 0);
+  const totalGb = lines.reduce((s, l) => s + l.gbAmount, 0);
 
   const copyBulkText = async () => {
     if (!bulkText.trim()) return;
@@ -490,6 +547,17 @@ export default function SendOrderPage() {
     }
   };
 
+  const loadSampleText = () => {
+    const samples = [
+      "0241234567 5gb",
+      "0559876543, 10",
+      "0507904981 - 2.5",
+      "0257467983 1GB",
+    ].join("\n");
+    setBulkText(samples);
+    toast("Sample orders inserted into text box", "info");
+  };
+
   const copyInsufficientBalanceOrders = async () => {
     if (!insufficientBalanceModal?.orders.length) return;
     const text = insufficientBalanceModal.orders
@@ -510,7 +578,10 @@ export default function SendOrderPage() {
         document.body.removeChild(ta);
       }
       setCopiedFromModal(true);
-      toast(`Copied ${insufficientBalanceModal.orders.length} order numbers to clipboard`, "success");
+      toast(
+        `Copied ${insufficientBalanceModal.orders.length} order numbers to clipboard`,
+        "success"
+      );
       setTimeout(() => setCopiedFromModal(false), 2000);
     } catch {
       toast("Failed to copy numbers", "error");
@@ -579,7 +650,7 @@ export default function SendOrderPage() {
       let skipped = 0;
       rawLines.forEach((line) => {
         if (isHeaderLine(line)) return;
-        const parsedLine = parseOrderLine(line, packages, network);
+        const parsedLine = parseOrderLine(line, packages, activeNetwork);
         if (parsedLine) parsed.push(parsedLine);
         else skipped++;
       });
@@ -587,6 +658,14 @@ export default function SendOrderPage() {
         addParsed(parsed, skipped, "pasted text", bulkText);
         return;
       }
+    }
+
+    if (unavailableIndices.size > 0) {
+      toast(
+        `Cannot dispatch: your queue contains ${unavailableIndices.size} order(s) for disabled networks or packages. Please remove them first.`,
+        "error"
+      );
+      return;
     }
 
     if (!ordersToSubmit.length) {
@@ -649,6 +728,7 @@ export default function SendOrderPage() {
 
   return (
     <div className="space-y-6">
+      {/* Platform Maintenance Notice */}
       {!submissionEnabled && (
         <div className="flex items-center gap-3 rounded-2xl border border-red-300 bg-red-50 p-4 text-sm text-red-800 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-300">
           <ShieldAlert className="h-5 w-5 shrink-0 text-red-600 dark:text-red-400" />
@@ -659,308 +739,528 @@ export default function SendOrderPage() {
         </div>
       )}
 
+      {/* Success Banner */}
       {result && (
-        <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-400">
-          <Send className="h-4 w-4 shrink-0" /> {result}
+        <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-5 py-3.5 text-sm font-semibold text-emerald-800 dark:border-emerald-500/30 dark:bg-emerald-500/10 dark:text-emerald-300 shadow-sm animate-in fade-in-0 duration-200">
+          <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" />
+          <span>{result}</span>
         </div>
       )}
 
-      {/* Dual-Pane Modern Dispatch Terminal */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-        {/* Left Column: Order Input & Queue Management */}
-        <div className="lg:col-span-7 xl:col-span-8 space-y-6">
-          {/* Upload card */}
-          <div className="overflow-hidden rounded-3xl border border-slate-200/80 bg-white shadow-xs dark:border-white/10 dark:bg-[#0d1627]/90">
-        <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4 dark:border-white/5">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-600/25">
-            <FileUp className="h-5 w-5" />
-          </span>
-          <div>
-            <h2 className="text-sm font-bold">Bulk Orders</h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Upload CSV/Excel files or paste numbers in bulk for batch dispatch
+      {/* Hero Header Banner */}
+      <div className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white/90 p-5 sm:p-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90">
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-black uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                Batch Dispatch Engine v2.4
+              </span>
+              <span className="text-[10px] font-bold text-slate-400">· Zero Switch Delays</span>
+            </div>
+            <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+              Bulk Order Gateway
+            </h1>
+            <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-2xl leading-relaxed">
+              Automated high-throughput data distribution terminal. Paste large recipient rosters or import Excel worksheets for instant parallel switch dispatch.
             </p>
           </div>
-        </div>
-        {/* Network + method */}
-        <div className="space-y-4 px-5 pt-4">
-          <div>
-            <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-              Network
-            </p>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5 rounded-xl bg-slate-100 p-1.5 dark:bg-white/5">
-              {NETWORKS.map((n) => {
-                const unavailable =
-                  !loading && packages.length > 0 && !packages.some((p) => p.network === n);
-                const isSelected = network === n;
-                let activeStyle = "";
-                let inactiveStyle = "";
-                if (n === "MTN") {
-                  activeStyle = "bg-amber-400 text-slate-950 font-bold shadow-md shadow-amber-400/30 ring-2 ring-amber-400 border border-amber-500";
-                  inactiveStyle = "text-amber-800 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-500/10";
-                } else if (n === "TELECEL") {
-                  activeStyle = "bg-red-600 text-white font-bold shadow-md shadow-red-600/30 ring-2 ring-red-500 border border-red-700";
-                  inactiveStyle = "text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-500/10";
-                } else if (n === "AIRTELTIGO_BIGTIME") {
-                  activeStyle = "bg-cyan-600 text-white font-bold shadow-md shadow-cyan-600/30 ring-2 ring-cyan-500 border border-cyan-700";
-                  inactiveStyle = "text-cyan-700 hover:bg-cyan-50 dark:text-cyan-400 dark:hover:bg-cyan-500/10";
-                } else {
-                  activeStyle = "bg-blue-600 text-white font-bold shadow-md shadow-blue-600/30 ring-2 ring-blue-500 border border-blue-700";
-                  inactiveStyle = "text-blue-700 hover:bg-blue-50 dark:text-blue-400 dark:hover:bg-blue-500/10";
-                }
 
-                return (
-                  <button
-                    key={n}
-                    onClick={() => setNetwork(n)}
-                    disabled={unavailable || !submissionEnabled}
-                    title={unavailable ? "No packages available for this network" : undefined}
-                    className={cn(
-                      "flex h-10 items-center justify-center rounded-lg text-xs sm:text-sm font-bold transition-all duration-150",
-                      isSelected ? activeStyle : inactiveStyle,
-                      unavailable &&
-                        "cursor-not-allowed opacity-40 hover:text-slate-500 dark:hover:text-slate-400"
-                    )}
-                  >
-                    {NETWORK_LABELS[n]}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-white/5">
-            {(
-              [
-                { key: "upload", label: "Upload File", icon: UploadCloud },
-                { key: "paste", label: "Paste Text", icon: ClipboardPaste },
-              ] as const
-            ).map((t) => (
-              <button
-                key={t.key}
-                onClick={() => setTab(t.key)}
-                disabled={!submissionEnabled}
-                className={cn(
-                  "flex h-9 items-center justify-center gap-2 rounded-lg text-sm font-semibold transition-all",
-                  tab === t.key
-                    ? "bg-white text-brand-600 shadow-sm dark:bg-[#1a2438] dark:text-brand-400"
-                    : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-200"
-                )}
-              >
-                <t.icon className="h-4 w-4" /> {t.label}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="p-5">
-          {loading ? (
-            <p className="py-8 text-center text-sm text-slate-500">Loading packages…</p>
-          ) : !submissionEnabled ? (
-            <div className="py-8 text-center text-sm text-slate-500">
-              Order submission is disabled.
-            </div>
-          ) : tab === "upload" ? (
-            <div className="space-y-3">
-              <div
-                onClick={() => !uploading && fileRef.current?.click()}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setDragging(true);
-                }}
-                onDragLeave={() => setDragging(false)}
-                onDrop={onDrop}
-                className={cn(
-                  "flex cursor-pointer flex-col items-center gap-2 rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors",
-                  dragging
-                    ? "border-brand-500 bg-brand-50/60 dark:bg-brand-500/10"
-                    : "border-brand-400/50 hover:border-brand-500 hover:bg-brand-50/40 dark:hover:bg-brand-500/5",
-                  uploading && "pointer-events-none opacity-60"
-                )}
-              >
-                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-600/25">
-                  {uploading ? (
-                    <Loader2 className="h-6 w-6 animate-spin" />
-                  ) : (
-                    <UploadCloud className="h-6 w-6" />
-                  )}
-                </span>
-                <p className="text-sm font-semibold">
-                  {uploading ? (
-                    "Reading your file…"
-                  ) : (
-                    <>
-                      Drag &amp; drop your Excel file or{" "}
-                      <span className="text-brand-600 dark:text-brand-400">click to browse</span>
-                    </>
-                  )}
-                </p>
-                <p className="max-w-sm text-xs text-slate-500 dark:text-slate-400">
-                  Upload an Excel (.xlsx) file with one order per row — phone number first, then
-                  GB. Every row is sent to{" "}
-                  <span className="font-semibold">{NETWORK_LABELS[network]}</span>.
-                </p>
-                {fileName && (
-                  <p className="text-xs font-medium text-slate-600 dark:text-slate-300">
-                    Selected: {fileName}
-                  </p>
-                )}
-                <input
-                  ref={fileRef}
-                  type="file"
-                  accept=".xlsx"
-                  className="hidden"
-                  onChange={(e) => {
-                    const f = e.target.files?.[0];
-                    if (f) void handleFile(f);
-                    e.target.value = "";
-                  }}
-                />
+          {/* Quick Metrics Bar */}
+          <div className="flex flex-wrap items-center gap-2 sm:gap-2.5">
+            <div className="flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-slate-50/80 px-3 py-2 text-xs dark:border-white/5 dark:bg-white/[0.04]">
+              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                <Radio className="h-3.5 w-3.5 animate-pulse" />
               </div>
-              <a
-                href="/api/orders/template"
-                download="mycedinet-order-template.xlsx"
-                className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-600 hover:underline dark:text-brand-400"
-              >
-                <Download className="h-3.5 w-3.5" /> Download Excel template
-              </a>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <textarea
-                rows={6}
-                placeholder={"0535308873 1gb\n0241234567,2\n0507904981 10gb"}
-                value={bulkText}
-                onChange={(e) => setBulkText(e.target.value)}
-                onPaste={(e) => {
-                  const pasted = e.clipboardData?.getData("text");
-                  if (pasted) {
-                    e.preventDefault();
-                    const converted = normalizeTextNumbers(pasted);
-                    const target = e.currentTarget;
-                    const start = target.selectionStart ?? 0;
-                    const end = target.selectionEnd ?? 0;
-                    const val = target.value;
-                    const next = val.slice(0, start) + converted + val.slice(end);
-                    setBulkText(next);
-                  }
-                }}
-                onBlur={() => {
-                  if (bulkText) setBulkText(normalizeTextNumbers(bulkText));
-                }}
-                className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-900 shadow-sm outline-none transition placeholder:text-slate-400 caret-brand-600 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-100 dark:placeholder:text-slate-500 dark:caret-brand-400"
-              />
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="space-y-1">
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    One order per line:{" "}
-                    <span className="font-mono font-semibold">number, gb</span> — e.g.{" "}
-                    <span className="font-mono font-semibold">0535308873,1</span> or{" "}
-                    <span className="font-mono font-semibold">0241234567 2gb</span>. All orders go
-                    to <span className="font-semibold">{NETWORK_LABELS[network]}</span>
-                  </p>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">
-                      ✓ Duplicate numbers are automatically filtered so only one order per number is sent.
-                    </p>
-                    {bulkText.trim() && (
-                      <span className="rounded-full bg-brand-500/10 px-2 py-0.5 text-[11px] font-bold text-brand-600 dark:text-brand-400">
-                        {splitOrderLines(bulkText).filter((l) => !isHeaderLine(l)).length} order(s) entered
-                      </span>
-                    )}
-                  </div>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {bulkText.trim() && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={copyBulkText}
-                        className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
-                        title="Copy text to clipboard"
-                      >
-                        {copiedBulkText ? (
-                          <>
-                            <Check className="h-3.5 w-3.5 text-emerald-500" />
-                            <span className="text-emerald-600 dark:text-emerald-400">Copied!</span>
-                          </>
-                        ) : (
-                          <>
-                            <Copy className="h-3.5 w-3.5 text-slate-400" />
-                            <span>Copy Text</span>
-                          </>
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setBulkText(normalizeTextNumbers(bulkText))}
-                        className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/10"
-                      >
-                        Format Numbers
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setBulkText("")}
-                        className="inline-flex h-9 items-center gap-1 rounded-lg border border-transparent px-2.5 text-xs font-semibold text-red-500 transition hover:bg-red-50 dark:hover:bg-red-500/10"
-                        title="Clear textarea"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        <span>Clear</span>
-                      </button>
-                    </>
-                  )}
-                  <button
-                    onClick={() => {
-                      handleText(bulkText, "pasted text");
-                    }}
-                    disabled={!bulkText.trim() || !submissionEnabled}
-                    className="inline-flex h-9 items-center gap-2 rounded-lg bg-brand-600 px-4 text-sm font-semibold text-white transition-colors hover:bg-brand-700 disabled:opacity-50"
-                  >
-                    <ClipboardPaste className="h-4 w-4" /> Parse &amp; add
-                  </button>
-                </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase text-slate-400">Gateway Status</p>
+                <p className="font-bold text-slate-800 dark:text-slate-200">Online &amp; Active</p>
               </div>
             </div>
-          )}
+
+            {userBalance !== null && (
+              <div className="flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-slate-50/80 px-3 py-2 text-xs dark:border-white/5 dark:bg-white/[0.04]">
+                <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                  <Wallet className="h-3.5 w-3.5" />
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase text-slate-400">Wallet Balance</p>
+                  <p className="font-black text-slate-900 dark:text-white tabular-nums">
+                    {formatGHS(userBalance)}
+                  </p>
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-          {/* Active Queue List */}
+      {/* Network Carrier Selection Rail */}
+      <div className="space-y-2.5">
+        <div className="flex items-center justify-between px-1">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
+              Target Carrier Network
+            </span>
+            <span className="text-[11px] text-slate-400">
+              ({availableNetworks.length} available)
+            </span>
+          </div>
+          <span className="text-[11px] text-slate-400 font-medium hidden sm:inline">
+            All orders in batch route through the chosen network switch
+          </span>
+        </div>
+
+        {loading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            {[1, 2, 3, 4].map((i) => (
+              <div
+                key={i}
+                className="h-20 animate-pulse rounded-2xl border border-slate-200/80 bg-white/60 dark:border-white/10 dark:bg-white/5"
+              />
+            ))}
+          </div>
+        ) : availableNetworks.length === 0 ? (
+          <div className="rounded-2xl border border-dashed border-amber-300 bg-amber-50/60 p-6 text-center dark:border-amber-500/30 dark:bg-amber-500/10">
+            <AlertTriangle className="mx-auto h-6 w-6 text-amber-600 dark:text-amber-400" />
+            <h3 className="mt-2 text-sm font-bold text-amber-900 dark:text-amber-200">
+              No Telecom Carriers Currently Available
+            </h3>
+            <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">
+              All package tiers have been temporarily disabled. Please check back shortly or contact support.
+            </p>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+            {availableNetworks.map((n) => {
+              const isSelected = activeNetwork === n;
+              const netPackages = packages.filter((p) => p.network === n);
+              const validPrices = netPackages
+                .map((p) => p.price)
+                .filter((pr): pr is number => typeof pr === "number" && pr > 0);
+              const minPrice = validPrices.length > 0 ? Math.min(...validPrices) : null;
+
+              // Network visual brand configs
+              const isMtn = n === "MTN";
+              const isTelecel = n === "TELECEL";
+              const isBigTime = n === "AIRTELTIGO_BIGTIME";
+
+              let brandBg = "bg-blue-600 text-white";
+              let brandBorder = "hover:border-blue-400";
+              let selectedRing =
+                "ring-2 ring-blue-500 border-blue-500/80 bg-blue-50/30 dark:bg-blue-950/20";
+              let tag = "iShare Switch";
+
+              if (isMtn) {
+                brandBg = "bg-[#FFCB05] text-slate-950";
+                brandBorder = "hover:border-amber-400";
+                selectedRing =
+                  "ring-2 ring-amber-400 border-amber-400 bg-amber-50/40 dark:bg-amber-950/20";
+                tag = "Direct Fiber Switch";
+              } else if (isTelecel) {
+                brandBg = "bg-[#E4002B] text-white";
+                brandBorder = "hover:border-red-400";
+                selectedRing =
+                  "ring-2 ring-red-500 border-red-500 bg-red-50/30 dark:bg-red-950/20";
+                tag = "Instant Core Switch";
+              } else if (isBigTime) {
+                brandBg = "bg-[#00A3E0] text-white";
+                brandBorder = "hover:border-sky-400";
+                selectedRing =
+                  "ring-2 ring-sky-500 border-sky-500 bg-sky-50/30 dark:bg-sky-950/20";
+                tag = "Big Time Gateway";
+              }
+
+              return (
+                <button
+                  key={n}
+                  type="button"
+                  onClick={() => setNetwork(n)}
+                  disabled={!submissionEnabled}
+                  className={cn(
+                    "group relative flex items-center gap-3.5 rounded-2xl border p-3.5 text-left transition-all duration-200 cursor-pointer shadow-xs",
+                    isSelected
+                      ? selectedRing
+                      : "border-slate-200/90 bg-white hover:bg-slate-50/80 dark:border-white/10 dark:bg-[#0c1424]/80 dark:hover:bg-white/5",
+                    brandBorder
+                  )}
+                >
+                  {/* Carrier Logo / Initials Badge */}
+                  <div
+                    className={cn(
+                      "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl font-black text-sm shadow-xs tracking-tight",
+                      brandBg
+                    )}
+                  >
+                    {isMtn ? "MTN" : isTelecel ? "TC" : isBigTime ? "AT+" : "AT"}
+                  </div>
+
+                  {/* Network Details */}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-1">
+                      <h4 className="font-black text-xs sm:text-sm text-slate-900 dark:text-white truncate">
+                        {NETWORK_LABELS[n]}
+                      </h4>
+                      {isSelected ? (
+                        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                      ) : (
+                        <span className="h-2 w-2 rounded-full bg-slate-300 dark:bg-slate-600" />
+                      )}
+                    </div>
+                    <p className="text-[10px] font-bold text-slate-400 dark:text-slate-500 truncate">
+                      {tag}
+                    </p>
+                    <div className="mt-1 flex items-center justify-between text-[10px]">
+                      <span className="font-semibold text-slate-500 dark:text-slate-400">
+                        {netPackages.length} package{netPackages.length !== 1 ? "s" : ""}
+                      </span>
+                      {minPrice !== null && (
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                          from {formatGHS(minPrice)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Main Terminal Grid: Order Intake Station & Dispatch Console */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        {/* Left Column: Order Input & Active Queue List */}
+        <div className="lg:col-span-7 xl:col-span-8 space-y-6">
+          {/* Order Intake Station Card */}
+          <div className="overflow-hidden rounded-3xl border border-slate-200/90 bg-white/95 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0c1424]/90">
+            {/* Mode Selector Header Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-4 sm:p-5 dark:border-white/5">
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-md shadow-emerald-500/20">
+                  <FileUp className="h-5 w-5" />
+                </span>
+                <div>
+                  <h3 className="text-sm font-black text-slate-900 dark:text-white">
+                    Order Input Station
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Routing batch to{" "}
+                    <span className="font-bold text-slate-700 dark:text-slate-200">
+                      {NETWORK_LABELS[activeNetwork] ?? activeNetwork}
+                    </span>
+                  </p>
+                </div>
+              </div>
+
+              {/* Segmented Mode Switcher */}
+              <div className="flex items-center rounded-2xl border border-slate-200/80 bg-slate-100/80 p-1 dark:border-white/10 dark:bg-white/5">
+                <button
+                  type="button"
+                  onClick={() => setTab("paste")}
+                  disabled={!submissionEnabled}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all cursor-pointer",
+                    tab === "paste"
+                      ? "bg-white text-emerald-700 shadow-sm dark:bg-[#121c30] dark:text-emerald-400"
+                      : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
+                  )}
+                >
+                  <ClipboardPaste className="h-3.5 w-3.5" />
+                  <span>Quick Paste</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTab("upload")}
+                  disabled={!submissionEnabled}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-bold transition-all cursor-pointer",
+                    tab === "upload"
+                      ? "bg-white text-emerald-700 shadow-sm dark:bg-[#121c30] dark:text-emerald-400"
+                      : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
+                  )}
+                >
+                  <FileSpreadsheet className="h-3.5 w-3.5" />
+                  <span>Excel Sheet (.xlsx)</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Input Station Body */}
+            <div className="p-5">
+              {loading ? (
+                <div className="py-12 text-center space-y-2">
+                  <Loader2 className="mx-auto h-6 w-6 animate-spin text-emerald-600" />
+                  <p className="text-xs text-slate-400 font-medium">Synchronizing telecom packages…</p>
+                </div>
+              ) : !submissionEnabled ? (
+                <div className="py-12 text-center text-sm text-slate-500">
+                  Order submission is temporarily disabled by admin.
+                </div>
+              ) : tab === "upload" ? (
+                /* Excel Upload Area */
+                <div className="space-y-4">
+                  <div
+                    onClick={() => !uploading && fileRef.current?.click()}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setDragging(true);
+                    }}
+                    onDragLeave={() => setDragging(false)}
+                    onDrop={onDrop}
+                    className={cn(
+                      "flex cursor-pointer flex-col items-center gap-3 rounded-2xl border-2 border-dashed px-6 py-12 text-center transition-all",
+                      dragging
+                        ? "border-emerald-500 bg-emerald-500/10 scale-[0.99]"
+                        : "border-slate-300/80 hover:border-emerald-500 hover:bg-slate-50/50 dark:border-white/15 dark:hover:border-emerald-500/60 dark:hover:bg-white/[0.02]",
+                      uploading && "pointer-events-none opacity-60"
+                    )}
+                  >
+                    <span className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 shadow-sm dark:bg-emerald-500/20 dark:text-emerald-400">
+                      {uploading ? (
+                        <Loader2 className="h-7 w-7 animate-spin" />
+                      ) : (
+                        <UploadCloud className="h-7 w-7 stroke-[1.75]" />
+                      )}
+                    </span>
+                    <div>
+                      <p className="text-sm font-bold text-slate-900 dark:text-white">
+                        {uploading ? (
+                          "Parsing spreadsheet orders…"
+                        ) : (
+                          <>
+                            Drag &amp; drop your Excel workbook or{" "}
+                            <span className="text-emerald-600 dark:text-emerald-400 underline underline-offset-2">
+                              browse files
+                            </span>
+                          </>
+                        )}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-400 max-w-sm mx-auto">
+                        Supported: Standard .xlsx spreadsheet up to 5MB. Column 1: Recipient Phone, Column 2: Data Volume (GB).
+                      </p>
+                    </div>
+
+                    {fileName && (
+                      <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                        <Check className="h-3.5 w-3.5" />
+                        Selected: {fileName}
+                      </span>
+                    )}
+
+                    <input
+                      ref={fileRef}
+                      type="file"
+                      accept=".xlsx"
+                      className="hidden"
+                      onChange={(e) => {
+                        const f = e.target.files?.[0];
+                        if (f) void handleFile(f);
+                        e.target.value = "";
+                      }}
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1">
+                    <a
+                      href="/api/orders/template"
+                      download="mycedinet-order-template.xlsx"
+                      className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 hover:text-emerald-700 dark:text-emerald-400 dark:hover:text-emerald-300 transition"
+                    >
+                      <Download className="h-4 w-4" />
+                      <span>Download Starter Excel Template (.xlsx)</span>
+                    </a>
+                    <span className="text-[11px] text-slate-400">
+                      Target Carrier: {NETWORK_LABELS[activeNetwork]}
+                    </span>
+                  </div>
+                </div>
+              ) : (
+                /* Multi-line Paste Terminal */
+                <div className="space-y-3.5">
+                  <div className="relative">
+                    <textarea
+                      rows={7}
+                      placeholder={
+                        "0535308873 1gb\n0241234567, 5\n0507904981 10gb\n0257467983 2"
+                      }
+                      value={bulkText}
+                      onChange={(e) => setBulkText(e.target.value)}
+                      onPaste={(e) => {
+                        const pasted = e.clipboardData?.getData("text");
+                        if (pasted) {
+                          e.preventDefault();
+                          const converted = normalizeTextNumbers(pasted);
+                          const target = e.currentTarget;
+                          const start = target.selectionStart ?? 0;
+                          const end = target.selectionEnd ?? 0;
+                          const val = target.value;
+                          const next = val.slice(0, start) + converted + val.slice(end);
+                          setBulkText(next);
+                        }
+                      }}
+                      onBlur={() => {
+                        if (bulkText) setBulkText(normalizeTextNumbers(bulkText));
+                      }}
+                      className="w-full rounded-2xl border border-slate-200/90 bg-slate-50/50 p-4 font-mono text-xs sm:text-sm text-slate-900 shadow-inner outline-none transition placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 dark:border-white/10 dark:bg-white/[0.03] dark:text-slate-100 dark:placeholder:text-slate-600 dark:focus:bg-[#070c14]"
+                    />
+
+                    {bulkText.trim() && (
+                      <span className="absolute bottom-3 right-3 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[10px] font-black text-emerald-700 dark:text-emerald-300">
+                        {splitOrderLines(bulkText).filter((l) => !isHeaderLine(l)).length} line(s)
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Text Toolbar Actions */}
+                  <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {!bulkText.trim() ? (
+                        <button
+                          type="button"
+                          onClick={loadSampleText}
+                          className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-slate-200/80 bg-slate-50 px-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10 transition cursor-pointer"
+                        >
+                          <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                          <span>Insert Sample</span>
+                        </button>
+                      ) : (
+                        <>
+                          <button
+                            type="button"
+                            onClick={copyBulkText}
+                            className="inline-flex h-8 items-center gap-1.5 rounded-xl border border-slate-200/80 bg-slate-50 px-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10 transition cursor-pointer"
+                            title="Copy text to clipboard"
+                          >
+                            {copiedBulkText ? (
+                              <>
+                                <Check className="h-3.5 w-3.5 text-emerald-500" />
+                                <span className="text-emerald-600 dark:text-emerald-400">Copied!</span>
+                              </>
+                            ) : (
+                              <>
+                                <Copy className="h-3.5 w-3.5 text-slate-400" />
+                                <span>Copy</span>
+                              </>
+                            )}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setBulkText(normalizeTextNumbers(bulkText))}
+                            className="inline-flex h-8 items-center gap-1 rounded-xl border border-slate-200/80 bg-slate-50 px-2.5 text-xs font-bold text-slate-600 hover:bg-slate-100 dark:border-white/10 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/10 transition cursor-pointer"
+                          >
+                            Format Numbers
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setBulkText("")}
+                            className="inline-flex h-8 items-center gap-1 rounded-xl border border-rose-200/60 bg-rose-50/60 px-2 text-xs font-bold text-rose-600 hover:bg-rose-100 dark:border-rose-500/20 dark:bg-rose-500/10 dark:text-rose-400 transition cursor-pointer"
+                            title="Clear textarea"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                            <span>Clear</span>
+                          </button>
+                        </>
+                      )}
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => handleText(bulkText, "pasted text")}
+                      disabled={!bulkText.trim() || !submissionEnabled}
+                      className="inline-flex h-9 items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-4 text-xs font-black text-slate-950 shadow-md transition hover:from-emerald-400 hover:to-teal-500 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                    >
+                      <ClipboardPaste className="h-4 w-4 stroke-[2.5]" />
+                      <span>Parse &amp; Queue Orders</span>
+                    </button>
+                  </div>
+
+                  {/* Input Syntax Guidelines */}
+                  <div className="rounded-2xl border border-slate-100 bg-slate-50/80 p-3 text-[11px] text-slate-500 dark:border-white/5 dark:bg-white/[0.02] space-y-1">
+                    <p className="flex items-center gap-1.5 font-bold text-slate-700 dark:text-slate-300">
+                      <Info className="h-3.5 w-3.5 text-emerald-500" />
+                      Syntax Format: One order per row:{" "}
+                      <span className="font-mono text-emerald-600 dark:text-emerald-400">
+                        [PHONE] [GB]
+                      </span>{" "}
+                      (e.g. <span className="font-mono">0241234567 5gb</span> or{" "}
+                      <span className="font-mono">0501234567, 10</span>)
+                    </p>
+                    <p className="text-[10px] text-slate-400">
+                      Automatic deduplication filters repeat recipient numbers. Excel-dropped leading zeroes (+233, 535...) are restored on the fly.
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Active Queue Ledger */}
           <QueueList
             lines={lines}
+            unavailableIndices={unavailableIndices}
+            onRemoveUnavailable={removeUnavailableLines}
             onRemove={(i) => setLines((ls) => ls.filter((_, j) => j !== i))}
             onClear={() => setLines([])}
           />
         </div>
 
-        {/* Right Column: Dispatch Action Center & Live Telemetry */}
+        {/* Right Column: Dispatch Action Center & Telemetry */}
         <div className="lg:col-span-5 xl:col-span-4 space-y-5 lg:sticky lg:top-20">
           <SendSummary
             count={lines.length}
             total={total}
-            submitting={submitting || !submissionEnabled}
+            totalGb={totalGb}
+            userBalance={userBalance}
+            submitting={submitting}
+            submissionEnabled={submissionEnabled}
+            unavailableCount={unavailableIndices.size}
             onSubmit={submit}
           />
 
-          <LiveDeliverySpeedCard network={network} />
+          {/* Live Delivery Speed Telemetry Card */}
+          <LiveDeliverySpeedCard network={activeNetwork} />
 
-          {/* Quick Format & Template Guidelines */}
-          <div className="rounded-3xl border border-slate-200/80 bg-white/70 p-5 text-xs text-slate-500 shadow-xs backdrop-blur-md dark:border-white/5 dark:bg-[#0d1627]/60 space-y-2.5">
-            <h4 className="font-black text-slate-800 dark:text-slate-200 flex items-center gap-2">
-              <ClipboardPaste className="h-4 w-4 text-emerald-500" />
-              Quick Order Guidelines
-            </h4>
-            <p className="text-[11px] leading-relaxed">
-              Input format: recipient phone number, followed by bundle size (GB):
-            </p>
-            <div className="rounded-xl bg-slate-100 p-2.5 font-mono text-[10px] text-slate-700 dark:bg-white/5 dark:text-slate-300 space-y-0.5 select-all">
-              <div>0241234567 5gb</div>
-              <div>0509876543, 10</div>
-              <div>0271122334 - 2.5GB</div>
+          {/* Instructions & Guidelines Card */}
+          <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-5 text-xs text-slate-500 shadow-sm backdrop-blur-xl dark:border-white/5 dark:bg-[#0c1424]/90 space-y-3">
+            <div className="flex items-center gap-2 border-b border-slate-100 pb-3 dark:border-white/5 font-black text-slate-800 dark:text-slate-200">
+              <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                <HelpCircle className="h-3.5 w-3.5" />
+              </div>
+              <h4>Bulk Dispatch Protocol</h4>
             </div>
-            <p className="text-[10px] text-slate-400">
-              Headers and punctuation are handled automatically. Duplicate numbers are deduplicated.
-            </p>
+
+            <ul className="space-y-2 text-[11px] leading-relaxed text-slate-600 dark:text-slate-300">
+              <li className="flex items-start gap-2">
+                <span className="font-black text-emerald-500">1.</span>
+                <span>
+                  <strong>Select Network:</strong> Pick the target carrier before queueing numbers.
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="font-black text-emerald-500">2.</span>
+                <span>
+                  <strong>Carrier Verification:</strong> Unverified MTN recipients will prompt a confirmation dialog to safeguard your wallet.
+                </span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="font-black text-emerald-500">3.</span>
+                <span>
+                  <strong>Deduplication Guard:</strong> Duplicate numbers inside your input or against existing queue entries are filtered automatically.
+                </span>
+              </li>
+            </ul>
+
+            <div className="pt-2 border-t border-slate-100 dark:border-white/5 flex items-center justify-between text-[10px] text-slate-400">
+              <span>MyCediNet Gateway v2.4</span>
+              <Link
+                href="/dashboard/buy-now"
+                className="font-bold text-emerald-600 hover:underline dark:text-emerald-400 inline-flex items-center gap-0.5"
+              >
+                Single Buy Portal
+                <ArrowUpRight className="h-3 w-3" />
+              </Link>
+            </div>
           </div>
         </div>
       </div>

@@ -550,6 +550,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       data: dataWithQueue,
       total,
+      queueTotal,
       page,
       pageSize,
       pages: Math.ceil(total / pageSize),

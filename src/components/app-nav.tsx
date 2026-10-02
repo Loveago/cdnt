@@ -282,10 +282,11 @@ export function useNavBadges(admin?: boolean): Record<string, NavBadgeData> {
         const res = await fetch("/api/orders?pageSize=1", { cache: "no-store" });
         if (res.ok) {
           const data = await res.json();
+          const inFlight = typeof data.queueTotal === "number" ? data.queueTotal : 0;
           setBadges({
             "/dashboard/orders": {
-              count: typeof data.total === "number" ? data.total : 0,
-              label: "orders",
+              count: inFlight,
+              label: "orders in processing",
               variant: "brand",
             },
           });
@@ -344,8 +345,9 @@ export function AppSidebarNav({
     <nav className={cn("space-y-6 text-xs", className)} aria-label="Sidebar Navigation">
       {sections.map((section) => (
         <div key={section.title} className="space-y-1.5">
-          <div className="px-3 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
-            {section.title}
+          <div className="flex items-center gap-1.5 px-3 text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
+            <span className="h-1 w-1 rounded-full bg-emerald-500/40" />
+            <span>{section.title}</span>
           </div>
           <div className="space-y-0.5">
             {section.items.map((item) => {
@@ -363,19 +365,21 @@ export function AppSidebarNav({
                   className={cn(
                     "group relative flex items-center justify-between rounded-xl px-3 py-2 font-bold transition-all duration-150",
                     active
-                      ? "bg-slate-900 text-white shadow-sm dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-1 dark:ring-emerald-500/30"
+                      ? "bg-slate-900 text-white shadow-sm dark:bg-emerald-500/15 dark:text-emerald-300 dark:ring-1 dark:ring-emerald-500/30 before:absolute before:left-0 before:top-2 before:bottom-2 before:w-1 before:rounded-r-full before:bg-emerald-500"
                       : "text-slate-600 hover:bg-slate-100/80 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white"
                   )}
                 >
                   <div className="flex items-center gap-2.5 min-w-0">
-                    <Icon
+                    <span
                       className={cn(
-                        "h-4 w-4 shrink-0 transition-colors",
+                        "flex h-6 w-6 shrink-0 items-center justify-center rounded-lg transition-all",
                         active
-                          ? "text-emerald-400 dark:text-emerald-300"
+                          ? "bg-emerald-500/20 text-emerald-400 dark:text-emerald-300"
                           : "text-slate-400 group-hover:text-slate-700 dark:text-slate-500 dark:group-hover:text-slate-300"
                       )}
-                    />
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                    </span>
                     <span className="truncate">{item.label}</span>
                   </div>
 
