@@ -287,9 +287,14 @@ export default function SendOrderPage() {
             });
             return;
           }
+        } else {
+          const errorData = await checkRes.json().catch(() => null);
+          toast(errorData?.message || "Failed to verify MTN numbers. Please try again.", "error");
+          return;
         }
       } catch {
-        // continue
+        toast("Network error verifying MTN numbers. Please try again.", "error");
+        return;
       }
     }
 
@@ -628,9 +633,14 @@ export default function SendOrderPage() {
             });
             return;
           }
+        } else {
+          const errorData = await checkRes.json().catch(() => null);
+          toast(errorData?.message || "Failed to verify MTN numbers. Please try again.", "error");
+          return;
         }
       } catch {
-        // continue
+        toast("Network error verifying MTN numbers. Please try again.", "error");
+        return;
       }
     }
 
