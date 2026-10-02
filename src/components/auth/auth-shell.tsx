@@ -158,7 +158,7 @@ export function AuthShell({
       </div>
 
       {/* Footer bar */}
-      <footer className="relative z-10 border-t border-white/[0.06] bg-slate-950/40 px-6 py-4 text-center text-xs text-slate-500 backdrop-blur-md">
+      <footer className="relative z-10 border-t border-white/[0.06] bg-slate-950/40 px-6 py-4 text-center text-xs text-slate-400 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl flex-col sm:flex-row items-center justify-between gap-3">
           <div className="flex flex-wrap items-center justify-center gap-2">
             <span>MyCediNet © 2026 · All Rights Reserved</span>
@@ -167,10 +167,10 @@ export function AuthShell({
               href="https://wa.me/233507904981"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-slate-400 hover:text-emerald-400 transition-colors group"
+              className="inline-flex items-center gap-1 text-slate-300 hover:text-emerald-400 transition-colors group"
             >
               <span>Powered by</span>
-              <span className="font-semibold text-slate-300 group-hover:text-emerald-400 group-hover:underline">
+              <span className="font-semibold text-white group-hover:text-emerald-400 group-hover:underline">
                 Crazy Tech Enterprise
               </span>
             </a>
@@ -180,7 +180,7 @@ export function AuthShell({
               Storefront Directory
             </Link>
             <span>·</span>
-            <span className="flex items-center gap-1 text-slate-500">
+            <span className="flex items-center gap-1 text-slate-400">
               <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" /> Paystack Secured
             </span>
           </div>

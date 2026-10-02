@@ -55,12 +55,25 @@ export default function ForgotPasswordPage() {
       ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" autoComplete="email" {...register("email")} />
-            {errors.email && <p className="text-xs text-red-600">{errors.email.message}</p>}
+            <Label htmlFor="email" className="text-xs sm:text-sm font-semibold text-slate-200">
+              Email address
+            </Label>
+            <Input
+              id="email"
+              type="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              className="h-11 sm:h-12 rounded-xl bg-slate-950/70 border-white/15 px-3.5 text-sm text-white placeholder:text-slate-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/25 transition-all"
+              {...register("email")}
+            />
+            {errors.email && <p className="text-xs text-rose-400 font-medium">{errors.email.message}</p>}
           </div>
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting && <Spinner />} Send reset link
+          <Button
+            type="submit"
+            className="w-full h-11 sm:h-12 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 font-black text-slate-950 shadow-lg shadow-emerald-500/20 hover:from-emerald-400 hover:to-teal-500 active:scale-[0.99] transition-all text-sm sm:text-base tracking-wide"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? <Spinner className="h-5 w-5 text-slate-950" /> : "Send Reset Link"}
           </Button>
         </form>
       )}

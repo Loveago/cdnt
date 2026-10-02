@@ -275,34 +275,51 @@ export default function LoginPage() {
       ) : (
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
           <div className="space-y-1.5">
-            <Label htmlFor="email">Email</Label>
-            <Input id="email" type="email" autoComplete="email" {...register("email")} />
+            <Label htmlFor="email" className="text-xs sm:text-sm font-semibold text-slate-200">
+              Email address
+            </Label>
+            <Input
+              id="email"
+              type="email"
+              autoComplete="email"
+              placeholder="you@example.com"
+              className="h-11 sm:h-12 rounded-xl bg-slate-950/70 border-white/15 px-3.5 text-sm text-white placeholder:text-slate-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/25 transition-all"
+              {...register("email")}
+            />
             {errors.email && (
-              <p className="text-xs text-red-600">{errors.email.message}</p>
+              <p className="text-xs text-rose-400 font-medium">{errors.email.message}</p>
             )}
           </div>
           <div className="space-y-1.5">
-            <Label htmlFor="password">Password</Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="password" className="text-xs sm:text-sm font-semibold text-slate-200">
+                Password
+              </Label>
+              <a
+                href="/forgot-password"
+                className="text-xs font-semibold text-emerald-400 hover:text-emerald-300 transition-colors"
+              >
+                Forgot password?
+              </a>
+            </div>
             <Input
               id="password"
               type="password"
               autoComplete="current-password"
+              placeholder="••••••••••••"
+              className="h-11 sm:h-12 rounded-xl bg-slate-950/70 border-white/15 px-3.5 text-sm text-white placeholder:text-slate-500 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/25 transition-all"
               {...register("password")}
             />
             {errors.password && (
-              <p className="text-xs text-red-600">{errors.password.message}</p>
+              <p className="text-xs text-rose-400 font-medium">{errors.password.message}</p>
             )}
           </div>
-          <div className="flex justify-end">
-            <a
-              href="/forgot-password"
-              className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-400"
-            >
-              Forgot password?
-            </a>
-          </div>
-          <Button type="submit" className="w-full" disabled={isSubmitting}>
-            {isSubmitting && <Spinner />} Sign in
+          <Button
+            type="submit"
+            className="w-full h-11 sm:h-12 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 font-black text-slate-950 shadow-lg shadow-emerald-500/20 hover:from-emerald-400 hover:to-teal-500 active:scale-[0.99] transition-all text-sm sm:text-base tracking-wide"
+            disabled={isSubmitting}
+          >
+            {isSubmitting ? <Spinner className="h-5 w-5 text-slate-950" /> : "Sign In"}
           </Button>
         </form>
       )}
