@@ -6,7 +6,8 @@ import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid, BarChart, Bar, Legend,
 } from "recharts";
 import { formatGHS } from "@/lib/types";
-import { FileBarChart, TrendingUp, ClipboardList, Users } from "lucide-react";
+import { FileBarChart, TrendingUp, ClipboardList, Users, Search, ChevronRight } from "lucide-react";
+import { UserSalesSheet, type UserSalesUser } from "@/components/admin/user-sales-sheet";
 
 interface ReportData {
   statusCounts: Record<string, number>;
@@ -22,6 +23,7 @@ export default function AdminReportsPage() {
   const [range, setRange] = React.useState("90");
   const [loading, setLoading] = React.useState(true);
   const [error, setError] = React.useState<string | null>(null);
+  const [salesUser, setSalesUser] = React.useState<UserSalesUser | null>(null);
 
   React.useEffect(() => {
     setLoading(true);
@@ -161,30 +163,53 @@ export default function AdminReportsPage() {
         </div>
 
         <div className="rounded-2xl border border-slate-100 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-          <h3 className="mb-4 text-sm font-semibold">Top users by spend</h3>
+          <div className="flex items-center justify-between gap-2 mb-4">
+            <div>
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-white">Top users by spend</h3>
+              <p className="text-xs text-slate-400">Click any user to view detailed sales by day, month, year, or range</p>
+            </div>
+          </div>
           {safeData.topUsers.length === 0 ? (
             <p className="text-sm text-slate-500">No orders in this range.</p>
           ) : (
             <ul className="divide-y divide-slate-100 text-sm dark:divide-slate-800">
               {safeData.topUsers.map((u, i) => (
-                <li key={u.id} className="flex items-center gap-3 py-2.5">
-                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-50 text-xs font-bold text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
-                    {i + 1}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate font-medium">{u.name}</p>
-                    <p className="truncate text-xs text-slate-500">{u.email}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold">{formatGHS(u.spend)}</p>
-                    <p className="text-xs text-slate-500">{u.orders} orders</p>
-                  </div>
+                <li key={u.id}>
+                  <button
+                    type="button"
+                    onClick={() => setSalesUser({ id: u.id, name: u.name, email: u.email })}
+                    className="w-full flex items-center gap-3 py-2.5 px-2 -mx-2 rounded-xl text-left hover:bg-slate-50 dark:hover:bg-slate-800/60 transition group cursor-pointer"
+                    title={`View sales summary for ${u.name}`}
+                  >
+                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-brand-50 text-xs font-bold text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
+                      {i + 1}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-medium text-slate-900 dark:text-white group-hover:text-brand-600 dark:group-hover:text-brand-400 transition-colors">
+                        {u.name}
+                      </p>
+                      <p className="truncate text-xs text-slate-500">{u.email}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold text-slate-900 dark:text-white">{formatGHS(u.spend)}</p>
+                      <p className="text-xs text-slate-500">{u.orders} orders</p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-slate-400 group-hover:text-brand-600 transition-colors ml-1 shrink-0" />
+                  </button>
                 </li>
               ))}
             </ul>
           )}
         </div>
       </div>
+
+      {/* User Sales Summary Sheet */}
+      <UserSalesSheet
+        open={Boolean(salesUser)}
+        user={salesUser}
+        onClose={() => setSalesUser(null)}
+        onSelectUser={(u) => setSalesUser(u)}
+      />
     </div>
   );
 }

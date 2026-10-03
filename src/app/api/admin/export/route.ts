@@ -55,6 +55,7 @@ export async function GET(request: NextRequest) {
     const status = searchParams.get("status");
     const from = searchParams.get("from");
     const to = searchParams.get("to");
+    const userId = searchParams.get("userId");
 
     let rows: Record<string, unknown>[];
     let columns: ExportColumn[];
@@ -76,6 +77,7 @@ export async function GET(request: NextRequest) {
       columns = txColumns;
       title = "MyCediNet — Wallet Transactions";
       const where: Record<string, unknown> = {};
+      if (userId) where.userId = userId;
       if (status) where.status = status;
       if (from || to) {
         where.createdAt = {};
@@ -94,6 +96,7 @@ export async function GET(request: NextRequest) {
       columns = orderColumns;
       title = "MyCediNet — Orders";
       const where: Record<string, unknown> = {};
+      if (userId) where.userId = userId;
       if (status) where.status = status;
       if (from || to) {
         where.createdAt = {};

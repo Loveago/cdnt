@@ -21,7 +21,7 @@ export function AuthShell({
   children: React.ReactNode;
 }) {
   return (
-    <div className="relative min-h-screen bg-[#070c14] text-slate-100 flex flex-col justify-between selection:bg-emerald-500 selection:text-white overflow-hidden">
+    <div className="dark relative min-h-screen bg-[#070c14] text-slate-100 flex flex-col justify-between selection:bg-emerald-500 selection:text-white overflow-hidden">
       {/* Ambient background glows */}
       <div className="pointer-events-none fixed inset-0 overflow-hidden">
         <div className="absolute -top-32 -left-32 w-[600px] h-[600px] bg-gradient-to-tr from-emerald-600/20 via-teal-600/15 to-transparent blur-3xl opacity-80" />
@@ -32,11 +32,8 @@ export function AuthShell({
       {/* Top subtle bar for mobile/desktop */}
       <div className="relative z-10 border-b border-white/[0.06] bg-slate-950/40 px-6 py-3.5 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
-          <Link href="/store" className="flex items-center gap-2 group">
-            <BrandMark size="sm" />
-            <span className="font-extrabold tracking-tight text-white group-hover:text-emerald-400 transition-colors">
-              mycedinet<span className="text-emerald-400">.com</span>
-            </span>
+          <Link href="/store" className="flex items-center gap-2 group transition-transform hover:scale-[1.02] active:scale-[0.98]">
+            <BrandLogo size="sm" variant="dark" showTagline={false} />
           </Link>
           <div className="flex items-center gap-2">
             <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs font-semibold text-emerald-400">
@@ -52,6 +49,12 @@ export function AuthShell({
         <div className="grid w-full items-center gap-12 lg:grid-cols-12">
           {/* Left Brand Showcase Column (Visible on lg+) */}
           <div className="hidden lg:col-span-7 lg:flex flex-col justify-center space-y-8 pr-6">
+            <div className="flex items-center">
+              <Link href="/store" className="inline-block transition-transform hover:scale-[1.02] active:scale-[0.98]">
+                <BrandLogo size="lg" variant="dark" showTagline={true} />
+              </Link>
+            </div>
+
             <div className="inline-flex items-center gap-2 self-start rounded-full border border-emerald-500/30 bg-emerald-500/10 px-4 py-1.5 text-xs font-semibold text-emerald-300 shadow-sm shadow-emerald-500/10">
               <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
               Next-Gen Reseller Telecommunications Platform
@@ -129,12 +132,17 @@ export function AuthShell({
 
           {/* Right Column: Sleek Elevated Form Container */}
           <div className="mx-auto w-full max-w-md lg:col-span-5 lg:mx-0">
-            {/* Mobile Header Brand Pill (Shown only on small screens) */}
-            <div className="mb-6 flex flex-col items-center text-center lg:hidden">
-              <div className="mb-2">
-                <BrandLogo size="md" />
-              </div>
-              <p className="text-xs text-slate-400">Telecom &amp; Data Reseller Gateway</p>
+            {/* Form Header Brand Badge */}
+            <div className="mb-6 flex flex-col items-center text-center">
+              <Link
+                href="/store"
+                className="group inline-flex items-center gap-2.5 rounded-2xl border border-white/15 bg-slate-900/90 px-4 py-2.5 shadow-xl shadow-black/40 backdrop-blur-xl ring-1 ring-white/10 transition-all hover:border-emerald-400/40 hover:shadow-emerald-500/10 active:scale-[0.99]"
+              >
+                <BrandLogo size="md" variant="dark" showTagline={true} />
+              </Link>
+              <p className="mt-2 text-xs font-medium text-slate-400">
+                Telecom &amp; Data Reseller Gateway
+              </p>
             </div>
 
             <div className="relative overflow-hidden rounded-3xl border border-white/15 bg-slate-900/80 p-6 sm:p-8 shadow-2xl backdrop-blur-2xl transition-all">

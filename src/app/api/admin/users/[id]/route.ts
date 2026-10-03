@@ -1,10 +1,40 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
-import { requireAdmin } from "@/lib/auth";
+import { requireAdmin, requireStaff } from "@/lib/auth";
 import { updateUserSchema } from "@/lib/validation";
 import { recordAudit } from "@/lib/audit";
 import { handleRouteError, apiError } from "@/lib/api-helpers";
+
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    await requireStaff();
+    const { id } = await params;
+    const user = await prisma.user.findUnique({
+      where: { id },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        role: true,
+        status: true,
+        balance: true,
+        pricingProfileId: true,
+        createdAt: true,
+        lastLoginAt: true,
+        _count: { select: { orders: true } },
+      },
+    });
+    if (!user) return apiError(404, "User not found");
+    return NextResponse.json({ user });
+  } catch (err) {
+    return handleRouteError(err);
+  }
+}
 
 export async function PATCH(
   request: NextRequest,

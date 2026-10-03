@@ -19,6 +19,7 @@ import {
   Copy,
   Check,
   Wallet,
+  TrendingUp,
 } from "lucide-react";
 
 function CopyRefButton({ text }: { text: string }) {
@@ -76,6 +77,7 @@ export function AdminUsersTable({
   onSelectAll,
   currentUserId,
   onEdit,
+  onViewSales,
   onManualCredit,
   onManualDebit,
   onToggleFreeze,
@@ -89,6 +91,7 @@ export function AdminUsersTable({
   onSelectAll?: () => void;
   currentUserId?: string;
   onEdit: (u: UserRow) => void;
+  onViewSales?: (u: UserRow) => void;
   onManualCredit?: (u: UserRow) => void;
   onManualDebit?: (u: UserRow) => void;
   onToggleFreeze?: (u: UserRow) => void;
@@ -252,6 +255,17 @@ export function AdminUsersTable({
 
                   {/* Mobile Action Buttons Bar */}
                   <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-100 dark:border-slate-800">
+                    {onViewSales && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onViewSales(u)}
+                        className="h-8 px-2.5 text-xs font-semibold text-brand-700 border-brand-200 bg-brand-50/50 hover:bg-brand-100 dark:bg-brand-950/30 dark:border-brand-800 dark:text-brand-400"
+                        title="View user sales analytics"
+                      >
+                        <TrendingUp className="h-3 w-3 mr-1 text-brand-600 dark:text-brand-400" /> Sales
+                      </Button>
+                    )}
                     {onManualCredit && (
                       <Button
                         size="sm"
@@ -457,7 +471,21 @@ export function AdminUsersTable({
                           <span className="text-slate-400">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-xs whitespace-nowrap">{u._count.orders}</td>
+                      <td className="px-4 py-3 text-xs whitespace-nowrap">
+                        {onViewSales ? (
+                          <button
+                            type="button"
+                            onClick={() => onViewSales(u)}
+                            className="inline-flex items-center gap-1 font-semibold text-brand-600 hover:text-brand-700 hover:underline dark:text-brand-400 group/o"
+                            title="Click to view sales summary for this user"
+                          >
+                            <TrendingUp className="h-3 w-3 opacity-60 group-hover/o:opacity-100 transition-opacity" />
+                            <span>{u._count.orders}</span>
+                          </button>
+                        ) : (
+                          u._count.orders
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">
                         {u.lastLoginAt ? formatDateTime(u.lastLoginAt) : "Never"}
                       </td>
@@ -475,6 +503,19 @@ export function AdminUsersTable({
                           >
                             <Pencil className="h-3 w-3 mr-1 text-brand-600 dark:text-brand-400" /> Edit
                           </Button>
+
+                          {/* USER SALES SUMMARY BUTTON */}
+                          {onViewSales && (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => onViewSales(u)}
+                              className="h-7 text-xs font-semibold text-brand-700 border-brand-200 bg-brand-50/50 hover:bg-brand-100 dark:bg-brand-950/30 dark:border-brand-800 dark:text-brand-400"
+                              title="View user sales summary"
+                            >
+                              <TrendingUp className="h-3 w-3 mr-1 text-brand-600 dark:text-brand-400" /> Sales
+                            </Button>
+                          )}
 
                           {onManualCredit && (
                             <Button

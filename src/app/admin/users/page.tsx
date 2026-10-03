@@ -4,6 +4,7 @@ import * as React from "react";
 import { PageHeader } from "@/components/shared";
 import { UserFormDialog } from "@/components/admin/user-form-dialog";
 import { AdminUsersTable, type UserRow } from "@/components/admin/admin-users-table";
+import { UserSalesSheet } from "@/components/admin/user-sales-sheet";
 import { ManualCreditDialog } from "@/components/admin/manual-credit-dialog";
 import { ExportButtons } from "@/components/admin/export-buttons";
 import { Button } from "@/components/ui/button";
@@ -60,6 +61,7 @@ export default function AdminUsersPage() {
   const [adjustmentDialogOpen, setAdjustmentDialogOpen] = React.useState(false);
   const [adjustingUser, setAdjustingUser] = React.useState<UserRow | null>(null);
   const [adjustmentMode, setAdjustmentMode] = React.useState<"CREDIT" | "DEBIT">("CREDIT");
+  const [salesUser, setSalesUser] = React.useState<UserRow | null>(null);
   const [profiles, setProfiles] = React.useState<{ id: string; name: string }[]>([]);
 
   // Delete single user confirmation dialog
@@ -83,6 +85,19 @@ export default function AdminUsersPage() {
         if (d.user) setCurrentUser(d.user);
       })
       .catch(() => {});
+
+    if (typeof window !== "undefined") {
+      const sp = new URLSearchParams(window.location.search);
+      const targetUserId = sp.get("salesUserId") || sp.get("userId");
+      if (targetUserId) {
+        fetch(`/api/admin/users/${targetUserId}`)
+          .then((r) => r.json())
+          .then((d) => {
+            if (d.user) setSalesUser(d.user);
+          })
+          .catch(() => {});
+      }
+    }
   }, []);
 
   const load = React.useCallback(async () => {
@@ -639,6 +654,7 @@ export default function AdminUsersPage() {
           setEditing(u);
           setDialogOpen(true);
         }}
+        onViewSales={(u) => setSalesUser(u)}
         onManualCredit={(u) => {
           setAdjustingUser(u);
           setAdjustmentMode("CREDIT");
@@ -783,6 +799,14 @@ export default function AdminUsersPage() {
         }}
         user={adjustingUser}
         onAdjusted={load}
+      />
+
+      {/* User Sales Summary Sheet */}
+      <UserSalesSheet
+        open={Boolean(salesUser)}
+        user={salesUser}
+        onClose={() => setSalesUser(null)}
+        onSelectUser={(u) => setSalesUser(u as UserRow)}
       />
     </div>
   );
