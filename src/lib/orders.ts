@@ -199,15 +199,8 @@ export async function createOrder(input: CreateOrderInput) {
     }
   }
 
-  if (price == null) {
-    throw new Error("No price configured for this package in your profile");
-  }
-  
-  if (price === 0) {
-    const allowZero = await getSetting("allow_zero_price_orders", "true");
-    if (allowZero === "false") {
-      throw new Error("Free packages (zero price) are not allowed.");
-    }
+  if (price == null || price <= 0) {
+    throw new Error("No price configured or invalid price for this package. Orders cannot have a zero or negative price.");
   }
 
   // Central MTN Number Verification Check (§16, §17)

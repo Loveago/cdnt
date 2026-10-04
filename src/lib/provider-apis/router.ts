@@ -228,6 +228,16 @@ export async function dispatchOrder(
     };
   }
 
+  // Sandbox test orders must NEVER be sent to live network providers
+  if (order.isSandbox && !options.force) {
+    return {
+      success: true,
+      provider: "MANUAL",
+      status: order.status,
+      error: "Sandbox test order is isolated from live provider routing.",
+    };
+  }
+
   if (order.providerReference && !options.force) {
     return {
       success: true,

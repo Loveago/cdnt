@@ -163,7 +163,8 @@ export async function POST(request: NextRequest) {
     const pkgMap = new Map(packages.map((p) => [`${p.network.toUpperCase()}:${p.gbAmount}`, p]));
 
     let total = 0;
-    const priced = deduplicatedOrders.map((o) => {
+    const priced: Array<(typeof deduplicatedOrders)[number] & { price: number; packageId?: string }> = [];
+    for (const o of deduplicatedOrders) {
       const netUpper = o.network.toUpperCase();
       const pkg = pkgMap.get(`${netUpper}:${o.gbAmount}`);
 
@@ -175,18 +176,27 @@ export async function POST(request: NextRequest) {
         }
       }
       if (price == null && isCustomProfile && priceMap.has(o.gbAmount)) {
-        price = priceMap.get(o.gbAmount)!;
+        const customP = priceMap.get(o.gbAmount);
+        if (typeof customP === "number" && customP > 0) price = customP;
       }
       if (price == null) {
-        price = pkg?.retailPriceGHS ?? priceMap.get(o.gbAmount) ?? null;
+        const fallback = pkg?.retailPriceGHS ?? priceMap.get(o.gbAmount) ?? null;
+        if (typeof fallback === "number" && fallback > 0) price = fallback;
       }
 
-      if (price == null) {
-        throw new Error(`No price configured for ${o.network} ${o.gbAmount}GB`);
+      if (price == null || price <= 0) {
+        return apiError(
+          400,
+          `Cannot place order: No valid price configured for ${o.network} ${o.gbAmount}GB. Orders must have a valid price.`
+        );
       }
       total += price;
-      return { ...o, price, packageId: pkg?.id ?? null };
-    });
+      priced.push({ ...o, price, packageId: pkg?.id ?? o.packageId });
+    }
+
+    if (total <= 0) {
+      return apiError(400, "Cannot place order: Total order amount must be greater than zero.");
+    }
 
     // Validate MTN numbers before balance deduction in batch (§2, §16)
     const mtnOrders = deduplicatedOrders.filter((o) => o.network.toUpperCase() === "MTN");
@@ -264,17 +274,9 @@ export async function POST(request: NextRequest) {
       }
     }
 
+
     if (user.balance < total) {
       return apiError(402, `Insufficient balance. You need GHS ${total.toFixed(2)} but have GHS ${user.balance.toFixed(2)}.`);
-    }
-
-    // Atomic balance deduction
-    const result = await prisma.user.updateMany({
-      where: { id: user.id, balance: { gte: total } },
-      data: { balance: { decrement: total } },
-    });
-    if (result.count === 0) {
-      return apiError(402, "Insufficient balance. Please top up and try again.");
     }
 
     // Group recipients by network — one OrderBatch per network (§2: never mixed)
@@ -285,55 +287,120 @@ export async function POST(request: NextRequest) {
       groups.set(o.network, list);
     }
 
-    const created = [];
-    const createdBatches = [];
-    try {
-      for (const [network, lines] of groups) {
-        const batch = await prisma.orderBatch.create({
-          data: {
-            batchCode: await nextBatchCode(),
-            userId: user.id,
-            network,
-            totalRecipients: lines.length,
-            totalGb: lines.reduce((s, l) => s + l.gbAmount, 0),
-            totalAmount: lines.reduce((s, l) => s + l.price, 0),
-          },
-        });
-        createdBatches.push(batch);
+    // Execute atomic transaction for balance decrement, batches, orders, and ledger debit
+    let created: any[] = [];
+    let createdBatches: any[] = [];
+    let updatedBalance = user.balance;
 
-        // Process chunked creations to avoid timeouts while preserving order persistence
-        const CHUNK_SIZE = 10;
-        for (let i = 0; i < lines.length; i += CHUNK_SIZE) {
-          const chunk = lines.slice(i, i + CHUNK_SIZE);
-          const chunkOrders = await Promise.all(
-            chunk.map((o) =>
-              createOrder({
+    try {
+      const txResult = await prisma.$transaction(
+        async (tx) => {
+          // 1. Atomic balance deduction with balance check
+          const debited = await tx.user.updateMany({
+            where: { id: user.id, balance: { gte: total }, status: "ACTIVE" },
+            data: { balance: { decrement: total } },
+          });
+
+          if (debited.count === 0) {
+            throw new Error(
+              `INSUFFICIENT_BALANCE: Insufficient balance. You need GHS ${total.toFixed(2)} but your active balance is insufficient.`
+            );
+          }
+
+          const txBatches: any[] = [];
+          const txOrders: any[] = [];
+
+          for (const [network, lines] of groups) {
+            const batchCode = await nextBatchCode();
+            const batch = await tx.orderBatch.create({
+              data: {
+                batchCode,
                 userId: user.id,
-                phoneNumber: o.phoneNumber,
-                network: o.network,
-                gbAmount: o.gbAmount,
-                packageId: o.packageId ?? null,
-                amount: o.price,
-                source: "WEB",
-                batchId: batch.id,
-                skipMtnValidation: true,
-                skipAutoDispatch: true,
-              })
-            )
-          );
-          created.push(...chunkOrders);
+                network,
+                totalRecipients: lines.length,
+                totalGb: lines.reduce((s, l) => s + l.gbAmount, 0),
+                totalAmount: lines.reduce((s, l) => s + l.price, 0),
+                status: "PENDING",
+              },
+            });
+            txBatches.push(batch);
+
+            for (const o of lines) {
+              const ord = await tx.order.create({
+                data: {
+                  userId: user.id,
+                  phoneNumber: o.phoneNumber,
+                  network: o.network,
+                  gbAmount: o.gbAmount,
+                  packageId: o.packageId ?? null,
+                  amount: o.price,
+                  status: "PENDING",
+                  source: "WEB",
+                  batchId: batch.id,
+                  isSandbox: false,
+                  history: {
+                    create: {
+                      status: "PENDING",
+                      previousStatus: null,
+                      note: "Order created via dashboard",
+                      changedBy: user.email || "web",
+                    },
+                  },
+                },
+              });
+              txOrders.push(ord);
+            }
+          }
+
+          // Itemized ledger debit records
+          if (txOrders.length === 1) {
+            const o = txOrders[0];
+            await tx.walletTransaction.create({
+              data: {
+                userId: user.id,
+                type: "DEBIT",
+                amount: o.amount,
+                status: "APPROVED",
+                reference: `order:${o.id}`,
+                note: `Data: ${o.network} ${o.gbAmount}GB to ${o.phoneNumber} (Order #${o.id})`,
+              },
+            });
+          } else if (txOrders.length > 1) {
+            await tx.walletTransaction.createMany({
+              data: txOrders.map((o) => ({
+                userId: user.id,
+                type: "DEBIT",
+                amount: o.amount,
+                status: "APPROVED",
+                reference: `order:${o.id}`,
+                note: `Data: ${o.network} ${o.gbAmount}GB to ${o.phoneNumber} (Order #${o.id})`,
+              })),
+            });
+          }
+
+          const freshUser = await tx.user.findUnique({
+            where: { id: user.id },
+            select: { balance: true },
+          });
+
+          return {
+            batches: txBatches,
+            orders: txOrders,
+            newBalance: freshUser?.balance ?? (user.balance - total),
+          };
+        },
+        {
+          timeout: 45000,
         }
+      );
+
+      createdBatches = txResult.batches;
+      created = txResult.orders;
+      updatedBalance = txResult.newBalance;
+    } catch (err: any) {
+      if (err?.message?.includes("INSUFFICIENT_BALANCE")) {
+        return apiError(402, "Insufficient balance. Please top up and try again.");
       }
-    } catch (err) {
-      // Roll back partially created batches/orders, then refund the balance
-      for (const batch of createdBatches) {
-        await prisma.order.deleteMany({ where: { batchId: batch.id } });
-        await prisma.orderBatch.delete({ where: { id: batch.id } }).catch(() => {});
-      }
-      await prisma.user.update({
-        where: { id: user.id },
-        data: { balance: { increment: total } },
-      });
       throw err;
     }
 
@@ -368,6 +435,7 @@ export async function POST(request: NextRequest) {
       batches: createdBatches,
       total,
       count: created.length,
+      newBalance: updatedBalance,
     });
   } catch (err) {
     return handleRouteError(err);

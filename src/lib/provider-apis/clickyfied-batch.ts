@@ -196,6 +196,7 @@ export async function getPendingMtnClickyfiedOrders() {
       network: "MTN",
       providerReference: null,
       exportBatchId: null,
+      isSandbox: false, // Strictly exclude sandbox test orders from live Clickyfied batches
     },
     orderBy: { createdAt: "asc" },
     select: {

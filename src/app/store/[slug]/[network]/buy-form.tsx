@@ -222,7 +222,6 @@ export function NetworkBuyForm({ slug, products, network, storeName }: NetworkBu
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-4">
         {filteredProducts.map((p) => {
           const isPopular = [5, 10, 20].includes(p.gbAmount);
-          const unitRate = p.gbAmount > 0 ? (p.price / p.gbAmount).toFixed(2) : "0.00";
 
           return (
             <div
@@ -254,9 +253,6 @@ export function NetworkBuyForm({ slug, products, network, storeName }: NetworkBu
                   </span>
                   <span className="text-sm font-bold text-slate-500 dark:text-slate-400">GB</span>
                 </div>
-                <p className="mt-0.5 text-[11px] font-semibold text-slate-400">
-                  ₵{unitRate} / GB
-                </p>
               </div>
 
               {/* Price & Action Button */}
