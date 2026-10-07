@@ -96,6 +96,10 @@ interface SalesApiResponse {
     salesGHS: number;
     commissionGHS: number;
   } | null;
+  storefrontWallet?: {
+    balance: number;
+    pendingBalance: number;
+  } | null;
   timeline: Array<{
     key: string;
     label: string;
@@ -193,35 +197,14 @@ export function UserSalesSheet({
 
     if (mode === "day") {
       params.set("date", selectedDate);
-      const [y, m, d] = selectedDate.split("-").map(Number);
-      const start = new Date(y, m - 1, d, 0, 0, 0, 0);
-      const end = new Date(y, m - 1, d, 23, 59, 59, 999);
-      params.set("from", start.toISOString());
-      params.set("to", end.toISOString());
     } else if (mode === "month") {
       params.set("month", String(selectedMonth));
       params.set("year", String(selectedMonthYear));
-      const start = new Date(selectedMonthYear, selectedMonth - 1, 1, 0, 0, 0, 0);
-      const end = new Date(selectedMonthYear, selectedMonth, 0, 23, 59, 59, 999);
-      params.set("from", start.toISOString());
-      params.set("to", end.toISOString());
     } else if (mode === "year") {
       params.set("year", String(selectedYear));
-      const start = new Date(selectedYear, 0, 1, 0, 0, 0, 0);
-      const end = new Date(selectedYear, 11, 31, 23, 59, 59, 999);
-      params.set("from", start.toISOString());
-      params.set("to", end.toISOString());
     } else if (mode === "range") {
-      if (rangeFrom) {
-        const [y, m, d] = rangeFrom.split("-").map(Number);
-        const start = new Date(y, m - 1, d, 0, 0, 0, 0);
-        params.set("from", start.toISOString());
-      }
-      if (rangeTo) {
-        const [y, m, d] = rangeTo.split("-").map(Number);
-        const end = new Date(y, m - 1, d, 23, 59, 59, 999);
-        params.set("to", end.toISOString());
-      }
+      if (rangeFrom) params.set("from", rangeFrom);
+      if (rangeTo) params.set("to", rangeTo);
     }
 
     try {
@@ -314,7 +297,19 @@ export function UserSalesSheet({
     window.open(url, "_blank");
   };
 
-  if (!user) return null;
+  const activeUser = React.useMemo(() => {
+    if (!user) return null;
+    if (data?.user && data.user.id === user.id) {
+      return {
+        ...user,
+        ...data.user,
+        balance: data.user.balance !== undefined ? data.user.balance : (user.balance ?? 0),
+      };
+    }
+    return user;
+  }, [user, data?.user]);
+
+  if (!user || !activeUser) return null;
 
   return (
     <Sheet
@@ -330,7 +325,7 @@ export function UserSalesSheet({
       description={
         <span>
           Detailed sales analytics, order volume, and network distribution for{" "}
-          <strong className="text-slate-800 dark:text-slate-200">{user.name}</strong>
+          <strong className="text-slate-800 dark:text-slate-200">{activeUser.name}</strong>
         </span>
       }
       footer={
@@ -392,35 +387,50 @@ export function UserSalesSheet({
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-brand-600 text-sm font-bold text-white shadow-md shadow-brand-500/20">
-                {user.name.slice(0, 2).toUpperCase()}
+                {activeUser.name.slice(0, 2).toUpperCase()}
               </div>
               <div>
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="font-bold text-base text-slate-900 dark:text-white leading-tight">
-                    {user.name}
+                    {activeUser.name}
                   </h3>
                   <span className="rounded-md bg-brand-50 px-2 py-0.5 text-[11px] font-bold text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
-                    {user.role || "USER"}
+                    {activeUser.role || "USER"}
                   </span>
-                  {user.status && (
+                  {activeUser.status && (
                     <span
                       className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                        user.status === "ACTIVE"
+                        activeUser.status === "ACTIVE"
                           ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-500/10 dark:text-emerald-400"
                           : "bg-amber-50 text-amber-700 dark:bg-amber-500/10 dark:text-amber-400"
                       }`}
                     >
-                      {user.status}
+                      {activeUser.status}
                     </span>
                   )}
                 </div>
                 <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  <span>{user.email}</span>
-                  {user.phone && <span>• {user.phone}</span>}
-                  <span className="flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
-                    <Wallet className="h-3 w-3" />
-                    Balance: {formatGHS(user.balance ?? 0)}
-                  </span>
+                  <span>{activeUser.email}</span>
+                  {activeUser.phone && <span>• {activeUser.phone}</span>}
+                  <div className="flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
+                    <Wallet className="h-3.5 w-3.5" />
+                    <span>Wallet: {formatGHS(activeUser.balance ?? 0)}</span>
+                    <a
+                      href={`/admin/wallets?userId=${activeUser.id}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="View wallet & ledger transactions"
+                      className="inline-flex items-center text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-300 ml-0.5 transition"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                    </a>
+                  </div>
+                  {data?.storefrontWallet && data.storefrontWallet.balance > 0 && (
+                    <div className="flex items-center gap-1 font-semibold text-purple-600 dark:text-purple-400">
+                      <Store className="h-3.5 w-3.5" />
+                      <span>Storefront: {formatGHS(data.storefrontWallet.balance)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1072,7 +1082,7 @@ export function UserSalesSheet({
                   </p>
                 </div>
                 <a
-                  href={`/admin/orders?q=${encodeURIComponent(user.email)}`}
+                  href={`/admin/orders?q=${encodeURIComponent(activeUser.email)}`}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1 text-xs font-bold text-brand-600 hover:text-brand-700 dark:text-brand-400"

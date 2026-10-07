@@ -52,6 +52,12 @@ export async function GET(
             status: true,
           },
         },
+        storefrontWallet: {
+          select: {
+            balance: true,
+            pendingBalance: true,
+          },
+        },
       },
     });
 
@@ -64,8 +70,8 @@ export async function GET(
     const dateParam = searchParams.get("date"); // YYYY-MM-DD
     const monthParam = searchParams.get("month"); // "10" or "2026-10"
     const yearParam = searchParams.get("year"); // "2026"
-    const fromParam = searchParams.get("from"); // ISO string
-    const toParam = searchParams.get("to"); // ISO string
+    const fromParam = searchParams.get("from"); // ISO string or YYYY-MM-DD
+    const toParam = searchParams.get("to"); // ISO string or YYYY-MM-DD
     const tzOffsetMinutes = parseInt(searchParams.get("tzOffset") || "0", 10); // client timezone offset
 
     let fromDate: Date;
@@ -79,19 +85,17 @@ export async function GET(
       let targetDate: Date;
       if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
         const [y, m, d] = dateParam.split("-").map(Number);
-        targetDate = new Date(y, m - 1, d);
-      } else if (fromParam) {
-        targetDate = new Date(fromParam);
-      } else {
-        targetDate = new Date();
-      }
-
-      if (fromParam && toParam) {
+        fromDate = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+        toDate = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
+        targetDate = fromDate;
+      } else if (fromParam && toParam) {
         fromDate = new Date(fromParam);
         toDate = new Date(toParam);
+        targetDate = fromDate;
       } else {
-        fromDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 0, 0, 0, 0);
-        toDate = new Date(targetDate.getFullYear(), targetDate.getMonth(), targetDate.getDate(), 23, 59, 59, 999);
+        fromDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+        toDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
+        targetDate = fromDate;
       }
 
       const isToday =
@@ -192,8 +196,23 @@ export async function GET(
       }
     } else {
       // mode === "range"
-      fromDate = fromParam ? new Date(fromParam) : new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000);
-      toDate = toParam ? new Date(toParam) : new Date();
+      if (fromParam && /^\d{4}-\d{2}-\d{2}$/.test(fromParam)) {
+        const [y, m, d] = fromParam.split("-").map(Number);
+        fromDate = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
+      } else if (fromParam) {
+        fromDate = new Date(fromParam);
+      } else {
+        fromDate = new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000);
+      }
+
+      if (toParam && /^\d{4}-\d{2}-\d{2}$/.test(toParam)) {
+        const [y, m, d] = toParam.split("-").map(Number);
+        toDate = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
+      } else if (toParam) {
+        toDate = new Date(toParam);
+      } else {
+        toDate = new Date();
+      }
 
       const diffDays = Math.ceil((toDate.getTime() - fromDate.getTime()) / (24 * 60 * 60 * 1000));
       const fromLabel = fromDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -241,6 +260,7 @@ export async function GET(
     // Build Prisma where clause
     const orderWhere: Prisma.OrderWhereInput = {
       userId,
+      isSandbox: false,
       createdAt: {
         gte: fromDate,
         lte: toDate,
@@ -435,10 +455,16 @@ export async function GET(
         phone: user.phone,
         role: user.role,
         status: user.status,
-        balance: user.balance,
+        balance: Number(user.balance || 0),
         pricingProfile: user.pricingProfile,
         createdAt: user.createdAt,
       },
+      storefrontWallet: user.storefrontWallet
+        ? {
+            balance: Number(user.storefrontWallet.balance || 0) / 100,
+            pendingBalance: Number(user.storefrontWallet.pendingBalance || 0) / 100,
+          }
+        : null,
       period: {
         mode,
         label: periodLabel,
