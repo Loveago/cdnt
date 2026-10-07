@@ -76,11 +76,12 @@ function getTypeConfig(type: string, amount: number) {
       };
     case "SIGNUP_FEE":
       return {
-        label: "Signup Fee",
+        label: "Signup Fee (Paid via Gateway)",
         icon: Receipt,
-        colorClass: "text-rose-600 dark:text-rose-400",
-        bgClass: "bg-rose-50 dark:bg-rose-500/10",
+        colorClass: "text-slate-600 dark:text-slate-400",
+        bgClass: "bg-slate-50 dark:bg-slate-500/10",
         isCredit: false,
+        isNeutral: true,
       };
     case "ADJUSTMENT":
       return amount >= 0
@@ -90,6 +91,7 @@ function getTypeConfig(type: string, amount: number) {
             colorClass: "text-violet-600 dark:text-violet-400",
             bgClass: "bg-violet-50 dark:bg-violet-500/10",
             isCredit: true,
+            isNeutral: false,
           }
         : {
             label: "Debit Adjustment",
@@ -97,6 +99,7 @@ function getTypeConfig(type: string, amount: number) {
             colorClass: "text-orange-600 dark:text-orange-400",
             bgClass: "bg-orange-50 dark:bg-orange-500/10",
             isCredit: false,
+            isNeutral: false,
           };
     default:
       return {
@@ -105,6 +108,7 @@ function getTypeConfig(type: string, amount: number) {
         colorClass: "text-slate-600 dark:text-slate-400",
         bgClass: "bg-slate-50 dark:bg-slate-500/10",
         isCredit: false,
+        isNeutral: false,
       };
   }
 }
@@ -181,19 +185,21 @@ function TransactionCard({ tx }: { tx: Transaction }) {
           <div className="text-right">
             <p
               className={`font-mono text-base font-black tabular-nums ${
-                cfg.isCredit
+                cfg.isNeutral
+                  ? "text-slate-700 dark:text-slate-300"
+                  : cfg.isCredit
                   ? "text-emerald-600 dark:text-emerald-400"
                   : "text-rose-600 dark:text-rose-400"
               }`}
             >
-              {cfg.isCredit ? "+" : "−"}
+              {cfg.isNeutral ? "" : cfg.isCredit ? "+" : "−"}
               {formatGHS(displayAmount)}
             </p>
           </div>
         </div>
 
         {/* Balance before → after strip */}
-        {isApproved && (
+        {isApproved && !cfg.isNeutral && (
           <div className="mt-2.5 flex items-center gap-1.5 rounded-xl border border-slate-200/60 bg-slate-50/80 px-3 py-1.5 dark:border-white/5 dark:bg-white/[0.03]">
             <span className="font-mono text-[11px] tabular-nums text-slate-500 dark:text-slate-400">
               {formatGHS(tx.balanceBefore)}

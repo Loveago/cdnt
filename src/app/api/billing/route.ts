@@ -34,19 +34,22 @@ export async function GET(request: NextRequest) {
       console.error("Auto-reconcile error in billing GET:", reconcileErr);
     }
 
+    // Self-heal: ensure user's historical orders have ledger debit records
+    const { reconcileUserWalletLedger } = await import("@/lib/orders");
+    await reconcileUserWalletLedger(user.id).catch(() => {});
+
     const where = { userId: user.id };
-    const [data, total, sums, freshUser] = await Promise.all([
+    const [data, total, allApprovedTxs, freshUser] = await Promise.all([
       prisma.walletTransaction.findMany({
         where,
-        orderBy: { createdAt: "desc" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         skip: (page - 1) * pageSize,
         take: pageSize,
       }),
       prisma.walletTransaction.count({ where }),
-      prisma.walletTransaction.groupBy({
-        by: ["type", "status"],
+      prisma.walletTransaction.findMany({
         where: { userId: user.id, status: "APPROVED" },
-        _sum: { amount: true },
+        select: { type: true, amount: true },
       }),
       prisma.user.findUnique({
         where: { id: user.id },
@@ -56,9 +59,12 @@ export async function GET(request: NextRequest) {
 
     let topups = 0;
     let spend = 0;
-    for (const s of sums) {
-      if (s.type === "TOPUP") topups += s._sum.amount ?? 0;
-      if (s.type === "DEBIT") spend += s._sum.amount ?? 0;
+    for (const tx of allApprovedTxs) {
+      if (tx.type === "TOPUP" || tx.type === "REFUND" || (tx.type === "ADJUSTMENT" && tx.amount > 0)) {
+        topups += Math.abs(tx.amount);
+      } else if (tx.type === "DEBIT" || (tx.type === "ADJUSTMENT" && tx.amount < 0)) {
+        spend += Math.abs(tx.amount);
+      }
     }
 
     const sendClaimSetting = await prisma.systemSetting.findUnique({

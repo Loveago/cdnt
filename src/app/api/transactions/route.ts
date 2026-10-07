@@ -2,11 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { handleRouteError } from "@/lib/api-helpers";
+import { reconcileUserWalletLedger } from "@/lib/orders";
 
 /**
  * Compute the signed balance delta for a wallet transaction.
  * - TOPUP / REFUND / positive ADJUSTMENT → adds to balance
- * - DEBIT / SIGNUP_FEE / negative ADJUSTMENT → subtracts from balance
+ * - DEBIT / negative ADJUSTMENT → subtracts from balance
+ * - SIGNUP_FEE → paid directly via external gateway (Paystack), not debited from wallet
  * Only APPROVED transactions change the balance.
  */
 function delta(type: string, amount: number, status: string): number {
@@ -16,8 +18,11 @@ function delta(type: string, amount: number, status: string): number {
     case "REFUND":
       return Math.abs(amount);
     case "DEBIT":
-    case "SIGNUP_FEE":
       return -Math.abs(amount);
+    case "SIGNUP_FEE":
+      // Account registration fee is paid directly by customer to Paystack
+      // and does not debit prepaid wallet balance.
+      return 0;
     case "ADJUSTMENT":
       // Adjustments can be positive (credit) or negative (debit).
       return amount;
@@ -35,17 +40,35 @@ export async function GET(request: NextRequest) {
     const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize") ?? 20)));
     const filterType = searchParams.get("type") || null; // "CREDIT" | "DEBIT" | null
 
+    // Self-heal: ensure all user's historical orders and refunds have ledger records
+    await reconcileUserWalletLedger(user.id);
+
+    // Fetch fresh user balance
+    const freshUser = await prisma.user.findUnique({
+      where: { id: user.id },
+      select: { balance: true },
+    });
+    const currentBalance = freshUser?.balance ?? user.balance;
+
     // -------------------------------------------------------------------
-    // 1. Fetch ALL transactions ordered oldest-first so we can compute a
-    //    running balance. This is necessary for accurate before/after values.
+    // 1. Fetch ALL transactions ordered oldest-first with tie-breaker
     // -------------------------------------------------------------------
     const allTxs = await prisma.walletTransaction.findMany({
       where: { userId: user.id },
-      orderBy: { createdAt: "asc" },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     });
 
-    // Build running balance array
-    let running = 0;
+    // -------------------------------------------------------------------
+    // 2. Compute anchor balance so the final running balance exactly matches
+    //    the user's live wallet balance, while preserving every delta step.
+    // -------------------------------------------------------------------
+    let totalDeltas = 0;
+    for (const tx of allTxs) {
+      totalDeltas += delta(tx.type, tx.amount, tx.status);
+    }
+    const anchor = currentBalance - totalDeltas;
+
+    let running = anchor;
     const enriched = allTxs.map((tx) => {
       const balanceBefore = running;
       running += delta(tx.type, tx.amount, tx.status);
@@ -57,9 +80,9 @@ export async function GET(request: NextRequest) {
     const newestFirst = [...enriched].reverse();
 
     // -------------------------------------------------------------------
-    // 2. Apply optional type filter
+    // 3. Apply optional type filter
     //    "CREDIT" = TOPUP | REFUND | positive ADJUSTMENT
-    //    "DEBIT"  = DEBIT | SIGNUP_FEE | negative ADJUSTMENT
+    //    "DEBIT"  = DEBIT | negative ADJUSTMENT
     // -------------------------------------------------------------------
     const filtered =
       filterType === "CREDIT"
@@ -73,20 +96,19 @@ export async function GET(request: NextRequest) {
         ? newestFirst.filter(
             (tx) =>
               tx.type === "DEBIT" ||
-              tx.type === "SIGNUP_FEE" ||
               (tx.type === "ADJUSTMENT" && tx.amount < 0)
           )
         : newestFirst;
 
     // -------------------------------------------------------------------
-    // 3. Paginate
+    // 4. Paginate
     // -------------------------------------------------------------------
     const total = filtered.length;
     const pages = Math.ceil(total / pageSize);
     const data = filtered.slice((page - 1) * pageSize, page * pageSize);
 
     // -------------------------------------------------------------------
-    // 4. Summary stats from all APPROVED transactions
+    // 5. Summary stats from all APPROVED transactions
     // -------------------------------------------------------------------
     let totalCredits = 0;
     let totalDebits = 0;
@@ -97,19 +119,13 @@ export async function GET(request: NextRequest) {
       else if (d < 0) totalDebits += Math.abs(d);
     }
 
-    // Fresh balance from DB
-    const freshUser = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: { balance: true },
-    });
-
     return NextResponse.json({
       data,
       total,
       page,
       pageSize,
       pages,
-      balance: freshUser?.balance ?? user.balance,
+      balance: currentBalance,
       summary: {
         totalCredits,
         totalDebits,
@@ -120,3 +136,4 @@ export async function GET(request: NextRequest) {
     return handleRouteError(err);
   }
 }
+

@@ -283,36 +283,70 @@ export default function BillingPage() {
               <EmptyState icon={Receipt} title="No transactions yet" description="Deposit funds into your wallet to start ordering." />
             ) : (
               <div className="divide-y divide-slate-100 dark:divide-white/5 overflow-y-auto max-h-[520px]">
-                {data.map((t) => (
-                  <div key={t.id} className="flex items-start gap-3.5 px-5 py-3.5 text-sm transition hover:bg-slate-50/50 dark:hover:bg-white/[0.02] sm:items-center">
-                    <span
-                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
-                        t.type === "TOPUP"
-                          ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
-                          : "bg-slate-100 text-slate-500 dark:bg-white/5 dark:text-slate-400"
-                      }`}
-                    >
-                      {t.type === "TOPUP" ? (
-                        <ArrowDownLeft className="h-4.5 w-4.5" />
-                      ) : (
-                        <ArrowUpRight className="h-4.5 w-4.5" />
-                      )}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
-                        <p className="font-bold text-slate-900 dark:text-white">{t.type}</p>
-                        {txBadge(t.status)}
+                {data.map((t) => {
+                  const isCredit =
+                    t.type === "TOPUP" ||
+                    t.type === "REFUND" ||
+                    (t.type === "ADJUSTMENT" && t.amount > 0);
+                  const isDebit =
+                    t.type === "DEBIT" ||
+                    (t.type === "ADJUSTMENT" && t.amount < 0);
+                  const isSignupFee = t.type === "SIGNUP_FEE";
+                  const displayAmount = Math.abs(t.amount);
+
+                  const typeLabel =
+                    t.type === "TOPUP"
+                      ? "Top-up"
+                      : t.type === "REFUND"
+                      ? "Refund"
+                      : t.type === "DEBIT"
+                      ? "Order Debit"
+                      : t.type === "SIGNUP_FEE"
+                      ? "Account Activation Fee"
+                      : t.type === "ADJUSTMENT"
+                      ? t.amount >= 0 ? "Credit Adjustment" : "Debit Adjustment"
+                      : t.type;
+
+                  return (
+                    <div key={t.id} className="flex items-start gap-3.5 px-5 py-3.5 text-sm transition hover:bg-slate-50/50 dark:hover:bg-white/[0.02] sm:items-center">
+                      <span
+                        className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                          isCredit
+                            ? "bg-emerald-500/15 text-emerald-600 dark:text-emerald-400"
+                            : isDebit
+                            ? "bg-rose-500/10 text-rose-600 dark:text-rose-400"
+                            : "bg-slate-100 text-slate-500 dark:bg-white/5 dark:text-slate-400"
+                        }`}
+                      >
+                        {isCredit ? (
+                          <ArrowDownLeft className="h-4.5 w-4.5" />
+                        ) : (
+                          <ArrowUpRight className="h-4.5 w-4.5" />
+                        )}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <p className="font-bold text-slate-900 dark:text-white">{typeLabel}</p>
+                          {txBadge(t.status)}
+                        </div>
+                        <p className="truncate text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                          {formatDateTime(t.createdAt)}
+                          {t.reference ? ` · Ref: ${t.reference}` : ""}
+                          {t.note ? ` · ${t.note}` : ""}
+                        </p>
                       </div>
-                      <p className="truncate text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                        {formatDateTime(t.createdAt)}
-                        {t.reference ? ` · Ref: ${t.reference}` : ""}
-                        {t.note ? ` · ${t.note}` : ""}
-                      </p>
-                    </div>
-                    <div className="shrink-0 text-right">
-                      <p className={`font-mono text-sm font-black ${t.type === "TOPUP" ? "text-emerald-600 dark:text-emerald-400" : "text-slate-900 dark:text-white"}`}>
-                        {t.type === "TOPUP" ? `+${formatGHS(t.amount)}` : `-${formatGHS(t.amount)}`}
-                      </p>
+                      <div className="shrink-0 text-right">
+                        <p
+                          className={`font-mono text-sm font-black tabular-nums ${
+                            isCredit
+                              ? "text-emerald-600 dark:text-emerald-400"
+                              : isDebit
+                              ? "text-rose-600 dark:text-rose-400"
+                              : "text-slate-700 dark:text-slate-300"
+                          }`}
+                        >
+                          {isCredit ? `+${formatGHS(displayAmount)}` : isDebit ? `−${formatGHS(displayAmount)}` : formatGHS(displayAmount)}
+                        </p>
                       {t.status === "PENDING" && t.reference?.startsWith("PSK-") && (
                         <div className="mt-1">
                           <button
@@ -328,8 +362,9 @@ export default function BillingPage() {
                       )}
                     </div>
                   </div>
-                ))}
-              </div>
+                );
+              })}
+            </div>
             )}
           </div>
         </div>

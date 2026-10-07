@@ -443,10 +443,10 @@ export async function changeOrderStatus(
   // refund/failure. No-op for ordinary orders.
   await syncCommissionForOrder(orderId, target);
 
-  // If order is REFUNDED or FAILED:
+  // If order is REFUNDED, FAILED, or CANCELLED:
   // Ordinary orders (WEB / API): refund to user's wallet balance if not already refunded.
   // Storefront orders: DO NOT credit the agent's wallet — customer is refunded via Paystack/manual.
-  if (target === "REFUNDED" || target === "FAILED") {
+  if (target === "REFUNDED" || target === "FAILED" || target === "CANCELLED") {
     if (order.source !== "STOREFRONT" && order.userId) {
       const existingRefund = await prisma.walletTransaction.findFirst({
         where: {
@@ -468,7 +468,7 @@ export async function changeOrderStatus(
               amount: order.amount,
               status: "APPROVED",
               reference: `REF-ORDER-${order.id}`,
-              note: `Refund for ${target === "FAILED" ? "Failed" : "Refunded"} Order #${order.id} (${order.phoneNumber})`,
+              note: `Refund for ${target === "FAILED" ? "Failed" : target === "CANCELLED" ? "Cancelled" : "Refunded"} Order #${order.id} (${order.phoneNumber})`,
             },
           }),
         ]);
@@ -646,3 +646,87 @@ export async function getOrderStats(where: Record<string, unknown>) {
     revenue: revenue._sum.amount ?? 0,
   };
 }
+
+/**
+ * Automatically reconcile user wallet ledger records.
+ * Ensures any order placed by the user (non-storefront) has a corresponding DEBIT ledger entry,
+ * and any FAILED, CANCELLED, or REFUNDED order has a corresponding REFUND ledger entry.
+ */
+export async function reconcileUserWalletLedger(userId: string) {
+  try {
+    const orders = await prisma.order.findMany({
+      where: { userId, source: { not: "STOREFRONT" } },
+      orderBy: { createdAt: "asc" },
+      select: {
+        id: true,
+        amount: true,
+        status: true,
+        network: true,
+        gbAmount: true,
+        phoneNumber: true,
+        createdAt: true,
+        updatedAt: true,
+      },
+    });
+
+    if (orders.length === 0) return;
+
+    const existingTxs = await prisma.walletTransaction.findMany({
+      where: { userId },
+      select: { reference: true },
+    });
+    const existingRefs = new Set(existingTxs.map((t) => t.reference).filter(Boolean));
+
+    const toCreate: Array<{
+      userId: string;
+      type: string;
+      amount: number;
+      status: string;
+      reference: string;
+      note: string;
+      createdAt: Date;
+    }> = [];
+
+    for (const o of orders) {
+      const orderRef = `order:${o.id}`;
+      const apiOrderRef = `api_order:${o.id}`;
+      if (!existingRefs.has(orderRef) && !existingRefs.has(apiOrderRef)) {
+        toCreate.push({
+          userId,
+          type: "DEBIT",
+          amount: o.amount,
+          status: "APPROVED",
+          reference: orderRef,
+          note: `Data: ${o.network} ${o.gbAmount}GB to ${o.phoneNumber} (Order #${o.id})`,
+          createdAt: o.createdAt,
+        });
+        existingRefs.add(orderRef);
+      }
+
+      if (["FAILED", "CANCELLED", "REFUNDED"].includes(o.status)) {
+        const refundRef = `REF-ORDER-${o.id}`;
+        if (!existingRefs.has(refundRef)) {
+          toCreate.push({
+            userId,
+            type: "REFUND",
+            amount: o.amount,
+            status: "APPROVED",
+            reference: refundRef,
+            note: `Refund for ${o.status === "FAILED" ? "Failed" : o.status === "CANCELLED" ? "Cancelled" : "Refunded"} Order #${o.id} (${o.phoneNumber})`,
+            createdAt: o.updatedAt || o.createdAt,
+          });
+          existingRefs.add(refundRef);
+        }
+      }
+    }
+
+    if (toCreate.length > 0) {
+      await prisma.walletTransaction.createMany({
+        data: toCreate,
+      });
+    }
+  } catch (err) {
+    console.error("Wallet ledger reconciliation error:", err);
+  }
+}
+
