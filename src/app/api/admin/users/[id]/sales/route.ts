@@ -257,6 +257,9 @@ export async function GET(
       }
     }
 
+    const networkParam = searchParams.get("network")?.trim() || "ALL";
+    const sourceParam = searchParams.get("source")?.trim() || "ALL";
+
     // Build Prisma where clause
     const orderWhere: Prisma.OrderWhereInput = {
       userId,
@@ -266,6 +269,13 @@ export async function GET(
         lte: toDate,
       },
     };
+
+    if (networkParam !== "ALL") {
+      orderWhere.network = networkParam;
+    }
+    if (sourceParam !== "ALL") {
+      orderWhere.source = sourceParam;
+    }
 
     // Execute queries concurrently
     const [

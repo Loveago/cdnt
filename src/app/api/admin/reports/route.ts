@@ -307,8 +307,24 @@ export async function GET(request: NextRequest) {
         : [];
     const userMap = new Map(userProfiles.map((u) => [u.id, u]));
 
+    // Query total orders placed (across all statuses) by these users in the same range
+    const userTotalGroups =
+      userIds.length > 0
+        ? await prisma.order.groupBy({
+            by: ["userId"],
+            where: {
+              ...where,
+              userId: { in: userIds },
+            },
+            _count: { _all: true },
+          })
+        : [];
+    const totalOrdersMap = new Map(userTotalGroups.map((tg) => [tg.userId, tg._count._all]));
+
     const top = userGroups.map((g) => {
       const profile = userMap.get(g.userId);
+      const completedOrders = g._count._all;
+      const allOrders = totalOrdersMap.get(g.userId) ?? completedOrders;
       return {
         id: g.userId,
         name: profile?.name || "Unknown User",
@@ -317,7 +333,8 @@ export async function GET(request: NextRequest) {
         role: profile?.role || "USER",
         status: profile?.status || "ACTIVE",
         balance: Number(profile?.balance ?? 0),
-        orders: g._count._all,
+        orders: completedOrders,
+        totalOrders: allOrders,
         spend: Number(Number(g._sum.amount ?? 0).toFixed(2)),
         gbAmount: Number(Number(g._sum.gbAmount ?? 0).toFixed(1)),
       };

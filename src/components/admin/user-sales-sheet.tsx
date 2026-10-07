@@ -24,6 +24,7 @@ import {
   ArrowRight,
   ChevronRight,
   ChevronLeft,
+  X,
 } from "lucide-react";
 import {
   ResponsiveContainer,
@@ -133,6 +134,12 @@ interface UserSalesSheetProps {
   user: UserSalesUser | null;
   onClose: () => void;
   onSelectUser?: (user: UserSalesUser) => void;
+  initialMode?: PeriodMode;
+  initialDate?: string;
+  initialRangeFrom?: string;
+  initialRangeTo?: string;
+  initialNetwork?: string;
+  initialSource?: string;
 }
 
 export function UserSalesSheet({
@@ -140,16 +147,22 @@ export function UserSalesSheet({
   user,
   onClose,
   onSelectUser,
+  initialMode,
+  initialDate,
+  initialRangeFrom,
+  initialRangeTo,
+  initialNetwork,
+  initialSource,
 }: UserSalesSheetProps) {
   // Current active mode
-  const [mode, setMode] = React.useState<PeriodMode>("day");
+  const [mode, setMode] = React.useState<PeriodMode>(initialMode || "day");
 
   // Day filter states
   const todayStr = React.useMemo(() => {
     const d = new Date();
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   }, []);
-  const [selectedDate, setSelectedDate] = React.useState<string>(todayStr);
+  const [selectedDate, setSelectedDate] = React.useState<string>(initialDate || todayStr);
 
   // Month filter states
   const currentYear = new Date().getFullYear();
@@ -166,8 +179,24 @@ export function UserSalesSheet({
     d.setDate(d.getDate() - 29);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   }, []);
-  const [rangeFrom, setRangeFrom] = React.useState<string>(thirtyDaysAgoStr);
-  const [rangeTo, setRangeTo] = React.useState<string>(todayStr);
+  const [rangeFrom, setRangeFrom] = React.useState<string>(initialRangeFrom || thirtyDaysAgoStr);
+  const [rangeTo, setRangeTo] = React.useState<string>(initialRangeTo || todayStr);
+
+  // Filter Network & Source
+  const [filterNetwork, setFilterNetwork] = React.useState<string>(initialNetwork || "ALL");
+  const [filterSource, setFilterSource] = React.useState<string>(initialSource || "ALL");
+
+  // Sync state whenever sheet opens with new initial props
+  React.useEffect(() => {
+    if (open) {
+      if (initialMode) setMode(initialMode);
+      if (initialDate) setSelectedDate(initialDate);
+      if (initialRangeFrom) setRangeFrom(initialRangeFrom);
+      if (initialRangeTo) setRangeTo(initialRangeTo);
+      if (initialNetwork !== undefined) setFilterNetwork(initialNetwork || "ALL");
+      if (initialSource !== undefined) setFilterSource(initialSource || "ALL");
+    }
+  }, [open, user?.id, initialMode, initialDate, initialRangeFrom, initialRangeTo, initialNetwork, initialSource]);
 
   // Chart view metric
   const [chartMetric, setChartMetric] = React.useState<"amount" | "gbAmount">("amount");
@@ -207,6 +236,13 @@ export function UserSalesSheet({
       if (rangeTo) params.set("to", rangeTo);
     }
 
+    if (filterNetwork && filterNetwork !== "ALL") {
+      params.set("network", filterNetwork);
+    }
+    if (filterSource && filterSource !== "ALL") {
+      params.set("source", filterSource);
+    }
+
     try {
       const res = await fetch(`/api/admin/users/${user.id}/sales?${params.toString()}`);
       const json = await res.json();
@@ -218,7 +254,18 @@ export function UserSalesSheet({
     } finally {
       setLoading(false);
     }
-  }, [user?.id, mode, selectedDate, selectedMonth, selectedMonthYear, selectedYear, rangeFrom, rangeTo]);
+  }, [
+    user?.id,
+    mode,
+    selectedDate,
+    selectedMonth,
+    selectedMonthYear,
+    selectedYear,
+    rangeFrom,
+    rangeTo,
+    filterNetwork,
+    filterSource,
+  ]);
 
   React.useEffect(() => {
     if (open && user?.id) {
@@ -538,13 +585,31 @@ export function UserSalesSheet({
               </button>
             </div>
 
-            {/* Current Active Label Display */}
-            {data?.period?.label && (
-              <div className="flex items-center gap-1.5 rounded-lg bg-brand-50/70 px-3 py-1 text-xs font-bold text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
-                <Calendar className="h-3.5 w-3.5" />
-                <span>{data.period.label}</span>
-              </div>
-            )}
+            {/* Current Active Label Display & Filter Chips */}
+            <div className="flex flex-wrap items-center gap-2">
+              {data?.period?.label && (
+                <div className="flex items-center gap-1.5 rounded-lg bg-brand-50/70 px-3 py-1 text-xs font-bold text-brand-700 dark:bg-brand-500/10 dark:text-brand-300">
+                  <Calendar className="h-3.5 w-3.5" />
+                  <span>{data.period.label}</span>
+                </div>
+              )}
+              {filterNetwork !== "ALL" && (
+                <div className="flex items-center gap-1 rounded-lg bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700 dark:bg-amber-500/10 dark:text-amber-300">
+                  <span>Network: {filterNetwork}</span>
+                  <button type="button" onClick={() => setFilterNetwork("ALL")} className="ml-0.5 hover:text-red-500 cursor-pointer">
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
+              {filterSource !== "ALL" && (
+                <div className="flex items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
+                  <span>Source: {filterSource}</span>
+                  <button type="button" onClick={() => setFilterSource("ALL")} className="ml-0.5 hover:text-red-500 cursor-pointer">
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Mode-Specific Date Pickers & Shortcuts */}

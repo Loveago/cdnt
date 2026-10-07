@@ -81,6 +81,7 @@ interface ReportData {
     status?: string;
     balance?: number;
     orders: number;
+    totalOrders?: number;
     spend: number;
     gbAmount?: number;
   }[];
@@ -950,7 +951,8 @@ export default function AdminReportsPage() {
                         <div className="text-right shrink-0">
                           <p className="font-bold text-slate-900 dark:text-white">{formatGHS(u.spend)}</p>
                           <p className="text-xs text-slate-500">
-                            {u.orders.toLocaleString()} {u.orders === 1 ? "order" : "orders"}
+                            {u.orders.toLocaleString()} completed
+                            {u.totalOrders && u.totalOrders > u.orders ? ` (${u.totalOrders} total)` : ""}
                             {u.gbAmount ? ` • ${u.gbAmount} GB` : ""}
                           </p>
                         </div>
@@ -971,6 +973,39 @@ export default function AdminReportsPage() {
         user={salesUser}
         onClose={() => setSalesUser(null)}
         onSelectUser={(u) => setSalesUser(u)}
+        initialMode={
+          preset === "today" || preset === "yesterday" || preset === "specific_date"
+            ? "day"
+            : "range"
+        }
+        initialDate={
+          preset === "today"
+            ? formatDateInput(new Date())
+            : preset === "yesterday"
+            ? (() => {
+                const y = new Date();
+                y.setDate(y.getDate() - 1);
+                return formatDateInput(y);
+              })()
+            : preset === "specific_date"
+            ? specificDate
+            : undefined
+        }
+        initialRangeFrom={
+          preset === "custom"
+            ? customFrom
+            : preset === "7" || preset === "30" || preset === "90"
+            ? (() => {
+                const days = Number(preset) || 30;
+                const f = new Date();
+                f.setDate(f.getDate() - (days - 1));
+                return formatDateInput(f);
+              })()
+            : undefined
+        }
+        initialRangeTo={preset === "custom" ? customTo : formatDateInput(new Date())}
+        initialNetwork={network !== "ALL" ? network : undefined}
+        initialSource={source !== "ALL" ? source : undefined}
       />
     </div>
   );
