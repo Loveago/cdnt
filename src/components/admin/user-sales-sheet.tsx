@@ -138,7 +138,10 @@ interface UserSalesSheetProps {
   initialDate?: string;
   initialRangeFrom?: string;
   initialRangeTo?: string;
+  initialFromIso?: string;
+  initialToIso?: string;
   initialNetwork?: string;
+  initialStatus?: string;
   initialSource?: string;
 }
 
@@ -151,7 +154,10 @@ export function UserSalesSheet({
   initialDate,
   initialRangeFrom,
   initialRangeTo,
+  initialFromIso,
+  initialToIso,
   initialNetwork,
+  initialStatus,
   initialSource,
 }: UserSalesSheetProps) {
   // Current active mode
@@ -182,8 +188,9 @@ export function UserSalesSheet({
   const [rangeFrom, setRangeFrom] = React.useState<string>(initialRangeFrom || thirtyDaysAgoStr);
   const [rangeTo, setRangeTo] = React.useState<string>(initialRangeTo || todayStr);
 
-  // Filter Network & Source
+  // Filter Network, Status & Source
   const [filterNetwork, setFilterNetwork] = React.useState<string>(initialNetwork || "ALL");
+  const [filterStatus, setFilterStatus] = React.useState<string>(initialStatus || "ALL");
   const [filterSource, setFilterSource] = React.useState<string>(initialSource || "ALL");
 
   // Sync state whenever sheet opens with new initial props
@@ -194,9 +201,10 @@ export function UserSalesSheet({
       if (initialRangeFrom) setRangeFrom(initialRangeFrom);
       if (initialRangeTo) setRangeTo(initialRangeTo);
       if (initialNetwork !== undefined) setFilterNetwork(initialNetwork || "ALL");
+      if (initialStatus !== undefined) setFilterStatus(initialStatus || "ALL");
       if (initialSource !== undefined) setFilterSource(initialSource || "ALL");
     }
-  }, [open, user?.id, initialMode, initialDate, initialRangeFrom, initialRangeTo, initialNetwork, initialSource]);
+  }, [open, user?.id, initialMode, initialDate, initialRangeFrom, initialRangeTo, initialNetwork, initialStatus, initialSource]);
 
   // Chart view metric
   const [chartMetric, setChartMetric] = React.useState<"amount" | "gbAmount">("amount");
@@ -232,12 +240,21 @@ export function UserSalesSheet({
     } else if (mode === "year") {
       params.set("year", String(selectedYear));
     } else if (mode === "range") {
-      if (rangeFrom) params.set("from", rangeFrom);
-      if (rangeTo) params.set("to", rangeTo);
+      // Use exact ISO boundaries if matching initial range to ensure 100% millisecond precision with reports page
+      if (initialFromIso && initialToIso && rangeFrom === initialRangeFrom && rangeTo === initialRangeTo) {
+        params.set("from", initialFromIso);
+        params.set("to", initialToIso);
+      } else {
+        if (rangeFrom) params.set("from", rangeFrom);
+        if (rangeTo) params.set("to", rangeTo);
+      }
     }
 
     if (filterNetwork && filterNetwork !== "ALL") {
       params.set("network", filterNetwork);
+    }
+    if (filterStatus && filterStatus !== "ALL") {
+      params.set("status", filterStatus);
     }
     if (filterSource && filterSource !== "ALL") {
       params.set("source", filterSource);
@@ -264,7 +281,12 @@ export function UserSalesSheet({
     rangeFrom,
     rangeTo,
     filterNetwork,
+    filterStatus,
     filterSource,
+    initialFromIso,
+    initialToIso,
+    initialRangeFrom,
+    initialRangeTo,
   ]);
 
   React.useEffect(() => {
@@ -601,6 +623,14 @@ export function UserSalesSheet({
                   </button>
                 </div>
               )}
+              {filterStatus !== "ALL" && (
+                <div className="flex items-center gap-1 rounded-lg bg-purple-50 px-2.5 py-1 text-xs font-bold text-purple-700 dark:bg-purple-500/10 dark:text-purple-300">
+                  <span>Status: {filterStatus}</span>
+                  <button type="button" onClick={() => setFilterStatus("ALL")} className="ml-0.5 hover:text-red-500 cursor-pointer">
+                    <X className="h-3 w-3" />
+                  </button>
+                </div>
+              )}
               {filterSource !== "ALL" && (
                 <div className="flex items-center gap-1 rounded-lg bg-blue-50 px-2.5 py-1 text-xs font-bold text-blue-700 dark:bg-blue-500/10 dark:text-blue-300">
                   <span>Source: {filterSource}</span>
@@ -847,8 +877,28 @@ export function UserSalesSheet({
                   {formatGHS(data.summary.totalRevenue)}
                 </p>
                 <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
-                  <CheckCircle2 className="h-3 w-3 text-emerald-500" />
-                  <span>{data.summary.successfulOrdersCount} completed orders</span>
+                  <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0" />
+                  <span className="truncate">{data.summary.successfulOrdersCount.toLocaleString()} completed orders</span>
+                </p>
+              </div>
+
+              {/* Total Orders Placed */}
+              <div className="rounded-2xl border border-blue-200/80 bg-gradient-to-br from-blue-50/80 to-white p-4 dark:border-blue-500/20 dark:from-blue-950/20 dark:to-slate-900">
+                <span className="text-[11px] font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wide block">
+                  Total Orders
+                </span>
+                <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1">
+                  {data.summary.totalOrdersCount.toLocaleString()}
+                </p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1 truncate">
+                  <span className="font-semibold text-emerald-600 dark:text-emerald-400">
+                    {data.summary.successfulOrdersCount.toLocaleString()} completed
+                  </span>
+                  {data.summary.totalOrdersCount > data.summary.successfulOrdersCount && (
+                    <span className="text-slate-400">
+                      • {(data.summary.totalOrdersCount - data.summary.successfulOrdersCount).toLocaleString()} other
+                    </span>
+                  )}
                 </p>
               </div>
 
@@ -861,13 +911,15 @@ export function UserSalesSheet({
                   {data.summary.totalGb.toLocaleString(undefined, { maximumFractionDigits: 1 })}{" "}
                   <span className="text-sm font-semibold">GB</span>
                 </p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1">
-                  <Layers className="h-3 w-3 text-brand-500" />
-                  <span>Avg {(data.summary.successfulOrdersCount > 0 ? (data.summary.totalGb / data.summary.successfulOrdersCount).toFixed(1) : "0")} GB / order</span>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-1 truncate">
+                  <Layers className="h-3 w-3 text-brand-500 shrink-0" />
+                  <span>
+                    Avg {(data.summary.successfulOrdersCount > 0 ? (data.summary.totalGb / data.summary.successfulOrdersCount).toFixed(1) : "0")} GB / order
+                  </span>
                 </p>
               </div>
 
-              {/* Success Rate & Attempts */}
+              {/* Success Rate */}
               <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-900">
                 <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide block">
                   Success Rate
@@ -875,21 +927,8 @@ export function UserSalesSheet({
                 <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1">
                   {data.summary.successRate}%
                 </p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                  {data.summary.successfulOrdersCount} of {data.summary.totalOrdersCount} attempts
-                </p>
-              </div>
-
-              {/* Average Order Value */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-white/10 dark:bg-slate-900">
-                <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide block">
-                  Avg Order Value
-                </span>
-                <p className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white mt-1">
-                  {formatGHS(data.summary.averageOrderValue)}
-                </p>
-                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                  Per successful order
+                <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 truncate">
+                  AOV: {formatGHS(data.summary.averageOrderValue)}
                 </p>
               </div>
             </div>

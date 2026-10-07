@@ -22,6 +22,20 @@ const MONTH_SHORT = [
   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
 ];
 
+function parseDateParam(str: string | null, endOfDay = false): Date | null {
+  if (!str) return null;
+  const trimmed = str.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    const [year, month, day] = trimmed.split("-").map(Number);
+    if (endOfDay) {
+      return new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
+    }
+    return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
+  }
+  const d = new Date(trimmed);
+  return isNaN(d.getTime()) ? null : d;
+}
+
 export async function GET(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
@@ -83,14 +97,13 @@ export async function GET(
 
     if (mode === "day") {
       let targetDate: Date;
-      if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
-        const [y, m, d] = dateParam.split("-").map(Number);
-        fromDate = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
-        toDate = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
+      if (dateParam) {
+        fromDate = parseDateParam(dateParam, false) || new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
+        toDate = parseDateParam(dateParam, true) || new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59, 999));
         targetDate = fromDate;
       } else if (fromParam && toParam) {
-        fromDate = new Date(fromParam);
-        toDate = new Date(toParam);
+        fromDate = parseDateParam(fromParam, false) || new Date();
+        toDate = parseDateParam(toParam, true) || new Date();
         targetDate = fromDate;
       } else {
         fromDate = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0, 0));
@@ -196,23 +209,8 @@ export async function GET(
       }
     } else {
       // mode === "range"
-      if (fromParam && /^\d{4}-\d{2}-\d{2}$/.test(fromParam)) {
-        const [y, m, d] = fromParam.split("-").map(Number);
-        fromDate = new Date(Date.UTC(y, m - 1, d, 0, 0, 0, 0));
-      } else if (fromParam) {
-        fromDate = new Date(fromParam);
-      } else {
-        fromDate = new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000);
-      }
-
-      if (toParam && /^\d{4}-\d{2}-\d{2}$/.test(toParam)) {
-        const [y, m, d] = toParam.split("-").map(Number);
-        toDate = new Date(Date.UTC(y, m - 1, d, 23, 59, 59, 999));
-      } else if (toParam) {
-        toDate = new Date(toParam);
-      } else {
-        toDate = new Date();
-      }
+      fromDate = parseDateParam(fromParam, false) || new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000);
+      toDate = parseDateParam(toParam, true) || new Date();
 
       const diffDays = Math.ceil((toDate.getTime() - fromDate.getTime()) / (24 * 60 * 60 * 1000));
       const fromLabel = fromDate.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -258,6 +256,7 @@ export async function GET(
     }
 
     const networkParam = searchParams.get("network")?.trim() || "ALL";
+    const statusParam = searchParams.get("status")?.trim() || "ALL";
     const sourceParam = searchParams.get("source")?.trim() || "ALL";
 
     // Build Prisma where clause
@@ -273,9 +272,16 @@ export async function GET(
     if (networkParam !== "ALL") {
       orderWhere.network = networkParam;
     }
+    if (statusParam !== "ALL") {
+      orderWhere.status = statusParam;
+    }
     if (sourceParam !== "ALL") {
       orderWhere.source = sourceParam;
     }
+
+    // For status breakdown: always group all statuses within this range/network/source
+    const statusCountsWhere: Prisma.OrderWhereInput = { ...orderWhere };
+    delete statusCountsWhere.status;
 
     // Execute queries concurrently
     const [
@@ -290,7 +296,7 @@ export async function GET(
       // 1. Group by status
       prisma.order.groupBy({
         by: ["status"],
-        where: orderWhere,
+        where: statusCountsWhere,
         _count: { _all: true },
         _sum: { amount: true, gbAmount: true },
       }),
@@ -381,6 +387,13 @@ export async function GET(
         totalGb = gb;
         successfulOrdersCount = count;
       }
+    }
+
+    if (statusParam !== "ALL") {
+      totalOrdersCount = statusBreakdown[statusParam]?.count || 0;
+      totalRevenue = statusBreakdown[statusParam]?.amount || 0;
+      totalGb = statusBreakdown[statusParam]?.gbAmount || 0;
+      successfulOrdersCount = statusParam === "SUCCESS" ? totalOrdersCount : 0;
     }
 
     const averageOrderValue = successfulOrdersCount > 0 ? totalRevenue / successfulOrdersCount : 0;

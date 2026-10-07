@@ -4,20 +4,16 @@ import { requireStaff } from "@/lib/auth";
 import { handleRouteError } from "@/lib/api-helpers";
 import { getSetting } from "@/lib/orders";
 
-function parseDateParam(str: string | null, endOfDay = false, tzOffsetMinutes = 0): Date | null {
+function parseDateParam(str: string | null, endOfDay = false): Date | null {
   if (!str) return null;
   const trimmed = str.trim();
   // YYYY-MM-DD format
   if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
     const [year, month, day] = trimmed.split("-").map(Number);
     if (endOfDay) {
-      const d = new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
-      if (tzOffsetMinutes) return new Date(d.getTime() + tzOffsetMinutes * 60000);
-      return d;
+      return new Date(Date.UTC(year, month - 1, day, 23, 59, 59, 999));
     }
-    const d = new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
-    if (tzOffsetMinutes) return new Date(d.getTime() + tzOffsetMinutes * 60000);
-    return d;
+    return new Date(Date.UTC(year, month - 1, day, 0, 0, 0, 0));
   }
   const d = new Date(trimmed);
   return isNaN(d.getTime()) ? null : d;
@@ -38,11 +34,11 @@ export async function GET(request: NextRequest) {
     let toDate: Date | null = null;
 
     if (specificDate) {
-      fromDate = parseDateParam(specificDate, false, tzOffsetMinutes);
-      toDate = parseDateParam(specificDate, true, tzOffsetMinutes);
+      fromDate = parseDateParam(specificDate, false);
+      toDate = parseDateParam(specificDate, true);
     } else {
-      fromDate = parseDateParam(searchParams.get("from"), false, tzOffsetMinutes);
-      toDate = parseDateParam(searchParams.get("to"), true, tzOffsetMinutes) || new Date();
+      fromDate = parseDateParam(searchParams.get("from"), false);
+      toDate = parseDateParam(searchParams.get("to"), true) || new Date();
     }
 
     const maxDays = parseInt(await getSetting("reports_max_date_range_days", "180"), 10);

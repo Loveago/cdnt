@@ -951,8 +951,12 @@ export default function AdminReportsPage() {
                         <div className="text-right shrink-0">
                           <p className="font-bold text-slate-900 dark:text-white">{formatGHS(u.spend)}</p>
                           <p className="text-xs text-slate-500">
-                            {u.orders.toLocaleString()} completed
-                            {u.totalOrders && u.totalOrders > u.orders ? ` (${u.totalOrders} total)` : ""}
+                            <span className="font-semibold text-slate-700 dark:text-slate-300">
+                              {(u.totalOrders ?? u.orders).toLocaleString()} total orders
+                            </span>
+                            {u.totalOrders && u.totalOrders !== u.orders
+                              ? ` (${u.orders.toLocaleString()} completed)`
+                              : ""}
                             {u.gbAmount ? ` • ${u.gbAmount} GB` : ""}
                           </p>
                         </div>
@@ -968,45 +972,48 @@ export default function AdminReportsPage() {
       )}
 
       {/* User Sales Summary Sheet */}
-      <UserSalesSheet
-        open={Boolean(salesUser)}
-        user={salesUser}
-        onClose={() => setSalesUser(null)}
-        onSelectUser={(u) => setSalesUser(u)}
-        initialMode={
-          preset === "today" || preset === "yesterday" || preset === "specific_date"
-            ? "day"
-            : "range"
-        }
-        initialDate={
-          preset === "today"
-            ? formatDateInput(new Date())
-            : preset === "yesterday"
-            ? (() => {
-                const y = new Date();
-                y.setDate(y.getDate() - 1);
-                return formatDateInput(y);
-              })()
-            : preset === "specific_date"
-            ? specificDate
-            : undefined
-        }
-        initialRangeFrom={
-          preset === "custom"
-            ? customFrom
-            : preset === "7" || preset === "30" || preset === "90"
-            ? (() => {
-                const days = Number(preset) || 30;
-                const f = new Date();
-                f.setDate(f.getDate() - (days - 1));
-                return formatDateInput(f);
-              })()
-            : undefined
-        }
-        initialRangeTo={preset === "custom" ? customTo : formatDateInput(new Date())}
-        initialNetwork={network !== "ALL" ? network : undefined}
-        initialSource={source !== "ALL" ? source : undefined}
-      />
+      {salesUser && (
+        <UserSalesSheet
+          key={`${salesUser.id}-${safeData.filter?.from}-${safeData.filter?.to}-${network}-${status}-${source}`}
+          open={Boolean(salesUser)}
+          user={salesUser}
+          onClose={() => setSalesUser(null)}
+          onSelectUser={(u) => setSalesUser(u)}
+          initialMode={safeData.filter?.isSingleDay ? "day" : "range"}
+          initialDate={
+            preset === "today"
+              ? formatDateInput(new Date())
+              : preset === "yesterday"
+              ? (() => {
+                  const y = new Date();
+                  y.setDate(y.getDate() - 1);
+                  return formatDateInput(y);
+                })()
+              : preset === "specific_date"
+              ? specificDate
+              : safeData.filter?.from?.slice(0, 10)
+          }
+          initialRangeFrom={
+            preset === "custom"
+              ? customFrom
+              : safeData.filter?.from
+              ? safeData.filter.from.slice(0, 10)
+              : undefined
+          }
+          initialRangeTo={
+            preset === "custom"
+              ? customTo
+              : safeData.filter?.to
+              ? safeData.filter.to.slice(0, 10)
+              : undefined
+          }
+          initialFromIso={safeData.filter?.from}
+          initialToIso={safeData.filter?.to}
+          initialNetwork={network !== "ALL" ? network : undefined}
+          initialStatus={status !== "ALL" ? status : undefined}
+          initialSource={source !== "ALL" ? source : undefined}
+        />
+      )}
     </div>
   );
 }
