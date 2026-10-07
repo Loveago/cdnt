@@ -654,8 +654,19 @@ export async function getOrderStats(where: Record<string, unknown>) {
  */
 export async function reconcileUserWalletLedger(userId: string) {
   try {
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, balance: true, createdAt: true },
+    });
+    if (!user) return;
+
+    // 1. Reconcile non-storefront, non-sandbox orders
     const orders = await prisma.order.findMany({
-      where: { userId, source: { not: "STOREFRONT" } },
+      where: {
+        userId,
+        source: { not: "STOREFRONT" },
+        isSandbox: false,
+      },
       orderBy: { createdAt: "asc" },
       select: {
         id: true,
@@ -666,14 +677,13 @@ export async function reconcileUserWalletLedger(userId: string) {
         phoneNumber: true,
         createdAt: true,
         updatedAt: true,
+        batch: { select: { batchCode: true } },
       },
     });
 
-    if (orders.length === 0) return;
-
     const existingTxs = await prisma.walletTransaction.findMany({
       where: { userId },
-      select: { reference: true },
+      select: { id: true, reference: true, type: true, amount: true, status: true },
     });
     const existingRefs = new Set(existingTxs.map((t) => t.reference).filter(Boolean));
 
@@ -690,7 +700,14 @@ export async function reconcileUserWalletLedger(userId: string) {
     for (const o of orders) {
       const orderRef = `order:${o.id}`;
       const apiOrderRef = `api_order:${o.id}`;
-      if (!existingRefs.has(orderRef) && !existingRefs.has(apiOrderRef)) {
+      const apiBatchRef = o.batch?.batchCode ? `api_batch:${o.batch.batchCode}` : null;
+
+      const isAlreadyDebited =
+        existingRefs.has(orderRef) ||
+        existingRefs.has(apiOrderRef) ||
+        Boolean(apiBatchRef && existingRefs.has(apiBatchRef));
+
+      if (!isAlreadyDebited) {
         toCreate.push({
           userId,
           type: "DEBIT",
@@ -724,6 +741,65 @@ export async function reconcileUserWalletLedger(userId: string) {
       await prisma.walletTransaction.createMany({
         data: toCreate,
       });
+    }
+
+    // 2. Self-heal balance discrepancy (e.g. unrecorded opening balance or manual balance shift)
+    const freshUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { balance: true, createdAt: true },
+    });
+    if (!freshUser) return;
+
+    const allApprovedTxs = await prisma.walletTransaction.findMany({
+      where: { userId, status: "APPROVED" },
+      select: { id: true, type: true, amount: true, reference: true },
+    });
+
+    let totalDeltas = 0;
+    for (const tx of allApprovedTxs) {
+      if (tx.type === "TOPUP" || tx.type === "REFUND") {
+        totalDeltas += Math.abs(tx.amount);
+      } else if (tx.type === "DEBIT") {
+        totalDeltas -= Math.abs(tx.amount);
+      } else if (tx.type === "ADJUSTMENT") {
+        totalDeltas += tx.amount;
+      }
+      // Note: SIGNUP_FEE is neutral and does not affect prepaid wallet balance
+    }
+
+    const discrepancy = Number((freshUser.balance - totalDeltas).toFixed(2));
+    if (Math.abs(discrepancy) >= 0.01) {
+      const existingAdj = allApprovedTxs.find(
+        (t) =>
+          t.type === "ADJUSTMENT" &&
+          (t.reference === "INITIAL-BALANCE" ||
+            t.reference?.startsWith("OPENING-BAL-") ||
+            t.reference?.startsWith("BALANCE-ADJ-"))
+      );
+
+      if (existingAdj) {
+        await prisma.walletTransaction.update({
+          where: { id: existingAdj.id },
+          data: {
+            amount: Number((existingAdj.amount + discrepancy).toFixed(2)),
+          },
+        });
+      } else {
+        await prisma.walletTransaction.create({
+          data: {
+            userId,
+            type: "ADJUSTMENT",
+            amount: discrepancy,
+            status: "APPROVED",
+            reference: discrepancy > 0 ? "INITIAL-BALANCE" : `BALANCE-ADJ-${Date.now()}`,
+            note:
+              discrepancy > 0
+                ? "Opening / Initial Wallet Balance"
+                : "System Ledger Balance Reconciliation Adjustment",
+            createdAt: new Date(new Date(freshUser.createdAt).getTime() - 1000),
+          },
+        });
+      }
     }
   } catch (err) {
     console.error("Wallet ledger reconciliation error:", err);

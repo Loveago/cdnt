@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -20,6 +22,8 @@ import {
   Banknote,
   RotateCcw,
   Sliders,
+  ShieldAlert,
+  ArrowLeft,
 } from "lucide-react";
 import { formatGHS, formatDateTime } from "@/lib/types";
 import { Spinner } from "@/components/shared";
@@ -41,6 +45,7 @@ interface Transaction {
 interface Summary {
   totalCredits: number;
   totalDebits: number;
+  netFlow?: number;
   transactionCount: number;
 }
 
@@ -48,7 +53,12 @@ type FilterType = "ALL" | "CREDIT" | "DEBIT";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function getTypeConfig(type: string, amount: number) {
+function getTypeConfig(
+  type: string,
+  amount: number,
+  note?: string | null,
+  reference?: string | null
+) {
   switch (type) {
     case "TOPUP":
       return {
@@ -83,7 +93,21 @@ function getTypeConfig(type: string, amount: number) {
         isCredit: false,
         isNeutral: true,
       };
-    case "ADJUSTMENT":
+    case "ADJUSTMENT": {
+      const isOpening =
+        reference === "INITIAL-BALANCE" ||
+        note?.toLowerCase().includes("opening") ||
+        note?.toLowerCase().includes("initial");
+      if (isOpening) {
+        return {
+          label: "Opening Balance",
+          icon: Wallet,
+          colorClass: "text-emerald-600 dark:text-emerald-400",
+          bgClass: "bg-emerald-50 dark:bg-emerald-500/10",
+          isCredit: true,
+          isNeutral: false,
+        };
+      }
       return amount >= 0
         ? {
             label: "Credit Adjustment",
@@ -101,6 +125,7 @@ function getTypeConfig(type: string, amount: number) {
             isCredit: false,
             isNeutral: false,
           };
+    }
     default:
       return {
         label: type,
@@ -149,7 +174,7 @@ function StatusBadge({ status }: { status: string }) {
 // ─── Transaction Card ─────────────────────────────────────────────────────────
 
 function TransactionCard({ tx }: { tx: Transaction }) {
-  const cfg = getTypeConfig(tx.type, tx.amount);
+  const cfg = getTypeConfig(tx.type, tx.amount, tx.note, tx.reference);
   const Icon = cfg.icon;
   const isApproved = tx.status === "APPROVED";
   const displayAmount = Math.abs(tx.amount);
@@ -255,9 +280,12 @@ function SummaryCard({
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
+// ─── Main Page Content ────────────────────────────────────────────────────────
 
-export default function TransactionsPage() {
+function TransactionsContent() {
+  const searchParams = useSearchParams();
+  const userIdParam = searchParams?.get("userId") || null;
+
   const [transactions, setTransactions] = React.useState<Transaction[]>([]);
   const [summary, setSummary] = React.useState<Summary>({
     totalCredits: 0,
@@ -265,6 +293,7 @@ export default function TransactionsPage() {
     transactionCount: 0,
   });
   const [balance, setBalance] = React.useState(0);
+  const [targetUser, setTargetUser] = React.useState<{ id: string; name: string; email: string } | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [filter, setFilter] = React.useState<FilterType>("ALL");
   const [page, setPage] = React.useState(1);
@@ -277,16 +306,18 @@ export default function TransactionsPage() {
       setLoading(true);
       const params = new URLSearchParams({ page: String(p), pageSize: String(pageSize) });
       if (f !== "ALL") params.set("type", f);
+      if (userIdParam) params.set("userId", userIdParam);
       const res = await fetch(`/api/transactions?${params}`);
       const json = await res.json();
       setTransactions(json.data ?? []);
       setSummary(json.summary ?? { totalCredits: 0, totalDebits: 0, transactionCount: 0 });
       setBalance(json.balance ?? 0);
+      setTargetUser(json.user ?? null);
       setTotalPages(json.pages ?? 1);
       setTotal(json.total ?? 0);
       setLoading(false);
     },
-    []
+    [userIdParam]
   );
 
   React.useEffect(() => {
@@ -302,6 +333,26 @@ export default function TransactionsPage() {
 
   return (
     <div className="space-y-6">
+      {/* Admin Audit Banner when viewing a specific user */}
+      {targetUser && userIdParam && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-amber-900 dark:text-amber-200">
+          <div className="flex items-center gap-2.5 text-xs font-semibold">
+            <ShieldAlert className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+            <span>
+              Admin Audit View: Inspecting financial ledger and accurate balances for{" "}
+              <strong>{targetUser.name}</strong> ({targetUser.email})
+            </span>
+          </div>
+          <Link
+            href={`/admin/wallets?userId=${targetUser.id}`}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-amber-500/30 bg-white/80 px-3 py-1.5 text-xs font-bold text-amber-900 shadow-2xs hover:bg-white dark:bg-slate-900/80 dark:text-amber-100 dark:hover:bg-slate-900"
+          >
+            <ArrowLeft className="h-3 w-3" />
+            <span>Return to Admin Wallets</span>
+          </Link>
+        </div>
+      )}
+
       {/* Hero Header Banner */}
       <div className="relative overflow-hidden rounded-3xl border border-slate-200/90 bg-white/90 p-5 sm:p-6 shadow-sm backdrop-blur-xl dark:border-white/10 dark:bg-[#0b1322]/90">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -314,7 +365,7 @@ export default function TransactionsPage() {
               <span className="text-[10px] font-bold text-slate-400">· Real-time Settlements</span>
             </div>
             <h1 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white tracking-tight">
-              Transactions
+              {targetUser && userIdParam ? `${targetUser.name}'s Transactions` : "Transactions"}
             </h1>
             <p className="text-xs sm:text-sm text-slate-500 dark:text-slate-400 max-w-2xl leading-relaxed">
               Complete chronological audit trail of wallet top-ups, order debits, refunds, and adjustments.
@@ -367,7 +418,7 @@ export default function TransactionsPage() {
           icon={TrendingUp}
           colorClass="text-emerald-600 dark:text-emerald-400"
           bgClass="bg-emerald-500/15"
-          sub="All deposits & refunds"
+          sub="All deposits, refunds & credits"
         />
         <SummaryCard
           label="Total Out"
@@ -375,7 +426,7 @@ export default function TransactionsPage() {
           icon={TrendingDown}
           colorClass="text-rose-600 dark:text-rose-400"
           bgClass="bg-rose-500/15"
-          sub="All order debits"
+          sub="All order debits & deductions"
         />
         <SummaryCard
           label="Net Flow"
@@ -391,7 +442,13 @@ export default function TransactionsPage() {
               ? "bg-emerald-500/15"
               : "bg-amber-500/15"
           }
-          sub={netChange >= 0 ? "Positive cashflow" : "Negative net balance"}
+          sub={
+            Math.abs(balance - netChange) < 0.01
+              ? "Reconciled · Equal to balance"
+              : netChange >= 0
+              ? "Positive cashflow"
+              : "Negative net balance"
+          }
         />
       </div>
 
@@ -479,5 +536,19 @@ export default function TransactionsPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function TransactionsPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="flex justify-center py-24">
+          <Spinner className="h-8 w-8 text-emerald-600" />
+        </div>
+      }
+    >
+      <TransactionsContent />
+    </React.Suspense>
   );
 }

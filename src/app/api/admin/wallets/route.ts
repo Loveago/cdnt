@@ -38,6 +38,10 @@ export async function GET(request: NextRequest) {
     // 2. Single User Detail Mode: tracking a specific user's wallet & activities
     const userId = searchParams.get("userId")?.trim();
     if (userId) {
+      // Self-heal: ensure user's historical orders, refunds, and opening balance have ledger records
+      const { reconcileUserWalletLedger } = await import("@/lib/orders");
+      await reconcileUserWalletLedger(userId);
+
       const user = await prisma.user.findUnique({
         where: { id: userId },
         select: {
@@ -59,48 +63,95 @@ export async function GET(request: NextRequest) {
       }
 
       // Financial stats aggregation
-      const [topupsAgg, debitsAgg, refundsAgg, ordersAgg, successOrdersCount, failedOrdersCount] =
-        await Promise.all([
-          prisma.walletTransaction.aggregate({
-            where: {
-              userId,
-              type: { in: ["TOPUP", "ADJUSTMENT", "SIGNUP_FEE"] },
-              status: "APPROVED",
-              amount: { gt: 0 },
-            },
-            _sum: { amount: true },
-            _count: { _all: true },
-          }),
-          prisma.walletTransaction.aggregate({
-            where: {
-              userId,
-              type: "DEBIT",
-              status: "APPROVED",
-            },
-            _sum: { amount: true },
-            _count: { _all: true },
-          }),
-          prisma.walletTransaction.aggregate({
-            where: {
-              userId,
-              type: "REFUND",
-              status: "APPROVED",
-            },
-            _sum: { amount: true },
-            _count: { _all: true },
-          }),
-          prisma.order.aggregate({
-            where: { userId },
-            _sum: { amount: true },
-            _count: { _all: true },
-          }),
-          prisma.order.count({
-            where: { userId, status: "SUCCESS" },
-          }),
-          prisma.order.count({
-            where: { userId, status: "FAILED" },
-          }),
-        ]);
+      const [
+        topupsAgg,
+        refundsAgg,
+        adjCreditAgg,
+        adjDebitAgg,
+        debitsAgg,
+        ordersSuccessAgg,
+        totalOrdersCount,
+        successOrdersCount,
+        failedOrdersCount,
+      ] = await Promise.all([
+        prisma.walletTransaction.aggregate({
+          where: {
+            userId,
+            type: "TOPUP",
+            status: "APPROVED",
+          },
+          _sum: { amount: true },
+          _count: { _all: true },
+        }),
+        prisma.walletTransaction.aggregate({
+          where: {
+            userId,
+            type: "REFUND",
+            status: "APPROVED",
+          },
+          _sum: { amount: true },
+          _count: { _all: true },
+        }),
+        prisma.walletTransaction.aggregate({
+          where: {
+            userId,
+            type: "ADJUSTMENT",
+            status: "APPROVED",
+            amount: { gt: 0 },
+          },
+          _sum: { amount: true },
+          _count: { _all: true },
+        }),
+        prisma.walletTransaction.aggregate({
+          where: {
+            userId,
+            type: "ADJUSTMENT",
+            status: "APPROVED",
+            amount: { lt: 0 },
+          },
+          _sum: { amount: true },
+          _count: { _all: true },
+        }),
+        prisma.walletTransaction.aggregate({
+          where: {
+            userId,
+            type: "DEBIT",
+            status: "APPROVED",
+          },
+          _sum: { amount: true },
+          _count: { _all: true },
+        }),
+        prisma.order.aggregate({
+          where: {
+            userId,
+            status: "SUCCESS",
+            source: { not: "STOREFRONT" },
+            isSandbox: false,
+          },
+          _sum: { amount: true },
+          _count: { _all: true },
+        }),
+        prisma.order.count({
+          where: { userId, source: { not: "STOREFRONT" }, isSandbox: false },
+        }),
+        prisma.order.count({
+          where: { userId, status: "SUCCESS", source: { not: "STOREFRONT" }, isSandbox: false },
+        }),
+        prisma.order.count({
+          where: { userId, status: "FAILED", source: { not: "STOREFRONT" }, isSandbox: false },
+        }),
+      ]);
+
+      const totalTopupsOnly = topupsAgg._sum.amount ?? 0;
+      const totalRefunds = refundsAgg._sum.amount ?? 0;
+      const totalAdjCredits = adjCreditAgg._sum.amount ?? 0;
+      const totalAdjDebits = Math.abs(adjDebitAgg._sum.amount ?? 0);
+      const totalOrderDebits = debitsAgg._sum.amount ?? 0;
+
+      const totalIn = Number((totalTopupsOnly + totalRefunds + totalAdjCredits).toFixed(2));
+      const totalOut = Number((totalOrderDebits + totalAdjDebits).toFixed(2));
+      const netFlow = Number((totalIn - totalOut).toFixed(2));
+      const isReconciled = Math.abs(user.balance - netFlow) < 0.01;
 
       // Pagination & filters for transactions
       const txPage = Math.max(1, Number(searchParams.get("txPage") ?? 1));
@@ -159,14 +210,19 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({
         user,
         stats: {
-          totalTopups: topupsAgg._sum.amount ?? 0,
-          totalTopupsCount: topupsAgg._count._all,
-          totalDebits: debitsAgg._sum.amount ?? 0,
-          totalDebitsCount: debitsAgg._count._all,
-          totalRefunds: refundsAgg._sum.amount ?? 0,
-          totalRefundsCount: refundsAgg._count._all,
-          totalOrdersCount: ordersAgg._count._all,
-          totalOrderSpend: ordersAgg._sum.amount ?? 0,
+          totalIn,
+          totalOut,
+          netFlow,
+          isReconciled,
+          totalTopups: totalTopupsOnly + totalAdjCredits,
+          topupsOnly: totalTopupsOnly,
+          totalTopupsCount: (topupsAgg._count._all ?? 0) + (adjCreditAgg._count._all ?? 0),
+          totalDebits: totalOut,
+          totalDebitsCount: (debitsAgg._count._all ?? 0) + (adjDebitAgg._count._all ?? 0),
+          totalRefunds,
+          totalRefundsCount: refundsAgg._count._all ?? 0,
+          totalOrdersCount,
+          totalOrderSpend: ordersSuccessAgg._sum.amount ?? 0,
           successOrdersCount,
           failedOrdersCount,
         },

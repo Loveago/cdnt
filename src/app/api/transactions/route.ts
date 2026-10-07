@@ -33,28 +33,36 @@ function delta(type: string, amount: number, status: string): number {
 
 export async function GET(request: NextRequest) {
   try {
-    const user = await requireUser();
+    const actor = await requireUser();
     const { searchParams } = new URL(request.url);
+
+    const isStaff = actor.role === "ADMIN" || actor.role === "MANAGER" || actor.role === "SECRETARY";
+    const requestedUserId = searchParams.get("userId")?.trim();
+    const targetUserId = isStaff && requestedUserId ? requestedUserId : actor.id;
+
+    // Self-heal: ensure user's historical orders, refunds, and opening balance have ledger records
+    await reconcileUserWalletLedger(targetUserId);
+
+    // Fetch target user & fresh balance
+    const targetUser = await prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { id: true, name: true, email: true, balance: true },
+    });
+    if (!targetUser) {
+      return NextResponse.json({ error: "User not found" }, { status: 404 });
+    }
+
+    const currentBalance = targetUser.balance;
 
     const page = Math.max(1, Number(searchParams.get("page") ?? 1));
     const pageSize = Math.min(100, Math.max(1, Number(searchParams.get("pageSize") ?? 20)));
     const filterType = searchParams.get("type") || null; // "CREDIT" | "DEBIT" | null
 
-    // Self-heal: ensure all user's historical orders and refunds have ledger records
-    await reconcileUserWalletLedger(user.id);
-
-    // Fetch fresh user balance
-    const freshUser = await prisma.user.findUnique({
-      where: { id: user.id },
-      select: { balance: true },
-    });
-    const currentBalance = freshUser?.balance ?? user.balance;
-
     // -------------------------------------------------------------------
     // 1. Fetch ALL transactions ordered oldest-first with tie-breaker
     // -------------------------------------------------------------------
     const allTxs = await prisma.walletTransaction.findMany({
-      where: { userId: user.id },
+      where: { userId: targetUser.id },
       orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     });
 
@@ -66,7 +74,7 @@ export async function GET(request: NextRequest) {
     for (const tx of allTxs) {
       totalDeltas += delta(tx.type, tx.amount, tx.status);
     }
-    const anchor = currentBalance - totalDeltas;
+    const anchor = Number((currentBalance - totalDeltas).toFixed(2));
 
     let running = anchor;
     const enriched = allTxs.map((tx) => {
@@ -126,10 +134,16 @@ export async function GET(request: NextRequest) {
       pageSize,
       pages,
       balance: currentBalance,
+      user: {
+        id: targetUser.id,
+        name: targetUser.name,
+        email: targetUser.email,
+      },
       summary: {
         totalCredits,
         totalDebits,
-        transactionCount: total,
+        netFlow: totalCredits - totalDebits,
+        transactionCount: allTxs.length,
       },
     });
   } catch (err) {

@@ -9,6 +9,7 @@ import { Input, Label, Select } from "@/components/ui/input";
 import { useToast } from "@/components/toast";
 import { formatGHS, formatDateTime } from "@/lib/types";
 import { ManualCreditDialog } from "@/components/admin/manual-credit-dialog";
+import Link from "next/link";
 import {
   Wallet,
   Search,
@@ -33,6 +34,7 @@ import {
   CreditCard,
   History,
   ShieldCheck,
+  TrendingUp,
 } from "lucide-react";
 
 interface UserProfile {
@@ -49,7 +51,12 @@ interface UserProfile {
 }
 
 interface WalletStats {
+  totalIn: number;
+  totalOut: number;
+  netFlow: number;
+  isReconciled: boolean;
   totalTopups: number;
+  topupsOnly?: number;
   totalTopupsCount: number;
   totalDebits: number;
   totalDebitsCount: number;
@@ -525,18 +532,42 @@ export default function AdminWalletsPage() {
                 </div>
 
                 {/* Big Wallet Balance Banner */}
-                <div className="flex items-center gap-4 rounded-xl border border-emerald-200/80 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent px-5 py-3 dark:border-emerald-500/20">
-                  <div className="rounded-xl bg-emerald-600/10 p-3 text-emerald-600 dark:bg-emerald-400/10 dark:text-emerald-400">
-                    <Wallet className="h-6 w-6" />
+                <div className="flex flex-col sm:flex-row sm:items-center gap-4 rounded-xl border border-emerald-200/80 bg-gradient-to-br from-emerald-500/10 via-emerald-500/5 to-transparent px-5 py-3 dark:border-emerald-500/20">
+                  <div className="flex items-center gap-4">
+                    <div className="rounded-xl bg-emerald-600/10 p-3 text-emerald-600 dark:bg-emerald-400/10 dark:text-emerald-400">
+                      <Wallet className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
+                          Current Wallet Balance
+                        </p>
+                        {stats && (
+                          <span
+                            className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                              stats.isReconciled
+                                ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-500/20 dark:text-emerald-300"
+                                : "bg-amber-100 text-amber-800 dark:bg-amber-500/20 dark:text-amber-300"
+                            }`}
+                          >
+                            {stats.isReconciled ? "✓ Reconciled" : "Discrepancy"}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-2xl font-black text-slate-900 dark:text-white">
+                        {formatGHS(userProfile.balance)}
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400">
-                      Current Wallet Balance
-                    </p>
-                    <p className="text-2xl font-black text-slate-900 dark:text-white">
-                      {formatGHS(userProfile.balance)}
-                    </p>
-                  </div>
+                  <Link
+                    href={`/dashboard/transactions?userId=${userProfile.id}`}
+                    target="_blank"
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-300/80 bg-white/80 px-3 py-1.5 text-xs font-semibold text-emerald-700 shadow-2xs hover:bg-emerald-50 dark:border-emerald-500/30 dark:bg-slate-800 dark:text-emerald-300 dark:hover:bg-slate-700 sm:ml-auto"
+                    title="Open full customer transaction view for this user"
+                  >
+                    <span>Inspect Customer Ledger</span>
+                    <ExternalLink className="h-3 w-3" />
+                  </Link>
                 </div>
               </div>
             </div>
@@ -545,28 +576,28 @@ export default function AdminWalletsPage() {
             {stats && (
               <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
                 <StatCard
-                  title="Total Credited"
-                  value={formatGHS(stats.totalTopups)}
+                  title="Total In (Credits)"
+                  value={formatGHS(stats.totalIn ?? (stats.totalTopups + stats.totalRefunds))}
                   icon={ArrowDownLeft}
-                  hint={`${stats.totalTopupsCount} top-ups / credits`}
+                  hint={`${stats.totalTopupsCount} top-ups (${formatGHS(stats.totalTopups)}), ${stats.totalRefundsCount} refunds (${formatGHS(stats.totalRefunds)})`}
                 />
                 <StatCard
-                  title="Spent on Orders"
-                  value={formatGHS(stats.totalOrderSpend)}
-                  icon={ShoppingBag}
-                  hint={`${stats.successOrdersCount} successful bundles`}
+                  title="Total Out (Debits)"
+                  value={formatGHS(stats.totalOut ?? stats.totalDebits)}
+                  icon={ArrowUpRight}
+                  hint={`${stats.totalDebitsCount} order debits & adjustments`}
                 />
                 <StatCard
-                  title="Total Refunds"
-                  value={formatGHS(stats.totalRefunds)}
-                  icon={RefreshCw}
-                  hint={`${stats.totalRefundsCount} refunded transactions`}
+                  title="Net Flow"
+                  value={formatGHS(stats.netFlow ?? (stats.totalTopups - stats.totalDebits))}
+                  icon={TrendingUp}
+                  hint={stats.isReconciled ? "Total In − Total Out = Balance" : `Diff: ${formatGHS(Math.abs(userProfile.balance - (stats.netFlow ?? 0)))}`}
                 />
                 <StatCard
                   title="Total Orders"
                   value={String(stats.totalOrdersCount)}
                   icon={History}
-                  hint={stats.failedOrdersCount > 0 ? `${stats.failedOrdersCount} failed` : "All in good standing"}
+                  hint={`${stats.successOrdersCount} successful (${formatGHS(stats.totalOrderSpend)}), ${stats.failedOrdersCount} failed`}
                 />
               </div>
             )}
