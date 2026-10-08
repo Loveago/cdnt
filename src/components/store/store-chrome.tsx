@@ -371,7 +371,31 @@ export function StoreChrome(props: StoreChromeProps) {
                 </span>
               </a>
             </p>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3">
+              <Link
+                href="/terms"
+                target="_blank"
+                className="text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+              >
+                Terms
+              </Link>
+              <span>·</span>
+              <Link
+                href="/refund-policy"
+                target="_blank"
+                className="text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+              >
+                Refunds
+              </Link>
+              <span>·</span>
+              <Link
+                href="/privacy"
+                target="_blank"
+                className="text-slate-600 dark:text-slate-400 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+              >
+                Privacy
+              </Link>
+              <span>·</span>
               <span className="inline-flex items-center gap-1.5 font-semibold text-emerald-600 dark:text-emerald-400">
                 <ShieldCheck className="h-4 w-4" />
                 Paystack 256-Bit SSL Encrypted

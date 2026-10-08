@@ -58,6 +58,19 @@ export async function middleware(request: NextRequest) {
       return NextResponse.next();
     }
 
+    // Allow legal policies and compliance pages to be served directly
+    if (
+      pathname === "/terms" ||
+      pathname === "/terms-of-service" ||
+      pathname === "/privacy" ||
+      pathname === "/privacy-policy" ||
+      pathname === "/refund-policy" ||
+      pathname === "/refunds" ||
+      pathname === "/cancellation-policy"
+    ) {
+      return NextResponse.next();
+    }
+
     // Normalize legacy /store URLs to clean root URLs
     if (pathname === "/store" || pathname === "/store/") {
       const cleanUrl = request.nextUrl.clone();

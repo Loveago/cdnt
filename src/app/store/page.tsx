@@ -324,8 +324,18 @@ export default function StorefrontIndexPage() {
               </span>
             </a>
           </div>
-          <div className="flex items-center gap-4 text-slate-400">
-            <span>Direct Telecom Switch</span>
+          <div className="flex flex-wrap items-center gap-3 text-slate-400">
+            <Link href="/terms" className="hover:text-emerald-400 transition-colors">
+              Terms
+            </Link>
+            <span>·</span>
+            <Link href="/refund-policy" className="hover:text-emerald-400 transition-colors">
+              Refunds
+            </Link>
+            <span>·</span>
+            <Link href="/privacy" className="hover:text-emerald-400 transition-colors">
+              Privacy
+            </Link>
             <span>·</span>
             <span className="flex items-center gap-1 text-emerald-400">
               <ShieldCheck className="h-3.5 w-3.5" /> Direct Carrier Switched

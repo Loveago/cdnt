@@ -183,7 +183,19 @@ export function AuthShell({
               </span>
             </a>
           </div>
-          <div className="flex items-center gap-4 text-slate-400">
+          <div className="flex flex-wrap items-center justify-center gap-3 sm:gap-4 text-slate-400">
+            <Link href="/terms" className="hover:text-emerald-400 transition-colors">
+              Terms
+            </Link>
+            <span>·</span>
+            <Link href="/refund-policy" className="hover:text-emerald-400 transition-colors">
+              Refunds
+            </Link>
+            <span>·</span>
+            <Link href="/privacy" className="hover:text-emerald-400 transition-colors">
+              Privacy
+            </Link>
+            <span>·</span>
             <Link href="/store" className="hover:text-emerald-400 transition-colors">
               Storefront Directory
             </Link>

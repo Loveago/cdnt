@@ -496,7 +496,21 @@ export function AppShell({
           {/* Desktop/Tablet Global Bottom Footer */}
           <footer className="mt-12 border-t border-slate-200/70 dark:border-white/5 pt-5 text-xs text-slate-400">
             <div className="flex flex-col sm:flex-row items-center justify-between gap-2 max-w-7xl mx-auto">
-              <p>{footerText || "MyCediNet Telecom © 2026 · All Rights Reserved"}</p>
+              <div className="flex flex-wrap items-center justify-center sm:justify-start gap-2.5">
+                <p>{footerText || "MyCediNet Telecom © 2026 · All Rights Reserved"}</p>
+                <span>·</span>
+                <Link href="/terms" target="_blank" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+                  Terms
+                </Link>
+                <span>·</span>
+                <Link href="/refund-policy" target="_blank" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+                  Refunds
+                </Link>
+                <span>·</span>
+                <Link href="/privacy" target="_blank" className="hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors">
+                  Privacy
+                </Link>
+              </div>
               <a
                 href="https://wa.me/233507904981"
                 target="_blank"

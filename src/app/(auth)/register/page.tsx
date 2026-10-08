@@ -1,6 +1,7 @@
 "use client";
 
 import { Suspense, useState, useEffect } from "react";
+import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -316,6 +317,22 @@ function RegisterForm() {
               "Create Account"
             )}
           </Button>
+
+          <p className="mt-3 text-center text-[11px] text-slate-400 leading-relaxed">
+            By registering, you agree to our{" "}
+            <Link href="/terms" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
+              Terms of Service
+            </Link>
+            ,{" "}
+            <Link href="/privacy" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
+              Privacy Policy
+            </Link>
+            , and{" "}
+            <Link href="/refund-policy" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
+              Refund Policy
+            </Link>
+            .
+          </p>
         </form>
       )}
 

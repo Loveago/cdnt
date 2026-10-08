@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { CheckCircle2, Clock, XCircle, AlertOctagon, FileText, Send, ArrowRight, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/shared";
@@ -393,7 +394,11 @@ export function DeveloperApplicationCard({
                   className="mt-0.5 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                 />
                 <label htmlFor="terms" className="text-xs text-slate-600 dark:text-slate-400">
-                  I agree to the MyCediNet Developer API Terms of Service and understand that automated order fulfillment will debit from my account balance.
+                  I agree to the{" "}
+                  <Link href="/terms" target="_blank" className="font-semibold text-emerald-600 hover:underline dark:text-emerald-400">
+                    MyCediNet Terms of Service
+                  </Link>{" "}
+                  and understand that automated order fulfillment will debit from my account balance.
                 </label>
               </div>
 
