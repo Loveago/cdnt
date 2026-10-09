@@ -353,8 +353,8 @@ export function TrackForm({ slug }: { slug: string }) {
               id="track-query"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="024 XXX XXXX · you@example.com · CF-ST-... · STF-..."
-              className="h-12 w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-4 text-sm font-medium text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 caret-emerald-500 dark:border-white/10 dark:bg-white/5 dark:text-white dark:placeholder:text-slate-500 dark:focus:bg-white/10"
+              placeholder="024 XXX XXXX · you@example.com · CDI-ST-... · STF-..."
+              className="h-12 w-full rounded-2xl border border-slate-300 bg-white px-4 text-sm font-medium text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 caret-emerald-500 dark:border-white/15 dark:bg-[#0c1424] dark:text-white dark:placeholder:text-slate-500 dark:focus:bg-[#0d182b] dark:focus:border-emerald-400 dark:caret-emerald-400"
             />
           </div>
 
@@ -371,7 +371,7 @@ export function TrackForm({ slug }: { slug: string }) {
             <label htmlFor="track-date" className="block text-xs font-bold text-slate-700 dark:text-slate-300">
               Order Date{" "}
               <span className="text-[11px] font-normal text-slate-500">
-                {query.includes("@") || /^CF-ST-|^STF-|^PSK-|^REG-/i.test(query.trim())
+                {query.includes("@") || /^(?:CDI|CF|TSK)-ST-|^STF-|^PSK-|^REG-/i.test(query.trim())
                   ? "(Optional for email / ref lookup)"
                   : "(Required for phone lookup)"}
               </span>
@@ -390,10 +390,10 @@ export function TrackForm({ slug }: { slug: string }) {
             value={date}
             max={maxDate}
             onChange={(e) => setDate(e.target.value)}
-            className="mt-1.5 h-11 w-full rounded-2xl border border-slate-200 bg-slate-50/70 px-3.5 text-sm text-slate-900 outline-none transition-all focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 dark:border-white/10 dark:bg-white/5 dark:text-white dark:focus:bg-white/10"
+            className="mt-1.5 h-11 w-full rounded-2xl border border-slate-300 bg-white px-3.5 text-sm text-slate-900 outline-none transition-all focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20 dark:border-white/15 dark:bg-[#0c1424] dark:text-white dark:focus:bg-[#0d182b] dark:focus:border-emerald-400"
           />
           <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-            {query.includes("@") || /^CF-ST-|^STF-|^PSK-|^REG-/i.test(query.trim())
+            {query.includes("@") || /^(?:CDI|CF|TSK)-ST-|^STF-|^PSK-|^REG-/i.test(query.trim())
               ? "Matches all recent orders matching your email or reference."
               : "Filters orders to the specific date placed to protect customer privacy."}
           </p>

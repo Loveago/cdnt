@@ -504,7 +504,7 @@ export function StoreChrome(props: StoreChromeProps) {
                 onChange={(e) => setChatMessage(e.target.value)}
                 placeholder="Type your message or order reference..."
                 autoFocus
-                className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50/60 p-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-white/10 dark:bg-white/[0.04] dark:text-slate-100 dark:placeholder:text-slate-500 dark:focus:border-emerald-400"
+                className="w-full resize-none rounded-xl border border-slate-300 bg-white p-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-white/15 dark:bg-[#0c1424] dark:text-white dark:placeholder:text-slate-500 dark:focus:bg-[#0d182b] dark:focus:border-emerald-400 caret-emerald-500 dark:caret-emerald-400 transition-colors"
               />
               <div className="flex items-center justify-between gap-2">
                 <span className="text-[11px] text-slate-400 dark:text-slate-500">

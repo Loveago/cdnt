@@ -7,6 +7,7 @@ import { mapClickyfiedStatus, normalizePhoneLast9, getProviderRoutingConfig } fr
 import { ClickyfiedClient } from "@/lib/provider-apis/clickyfied";
 import { recordOrderApiLog } from "@/lib/order-api-logs";
 import { sanitizeCustomerRefundNote } from "@/lib/types";
+import { parseOrderCode } from "@/lib/utils";
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now();
@@ -112,8 +113,9 @@ export async function POST(request: NextRequest) {
             ...searchKeys.map((k) => ({ providerReference: { contains: k } })),
             ...searchKeys.map((k) => ({ externalReference: k })),
             ...searchKeys
-              .filter((k) => k.startsWith("MCD-ORD-") || k.startsWith("TSK-ORD-"))
-              .map((k) => ({ id: parseInt(k.replace(/^(MCD|TSK)-ORD-/, ""), 10) })),
+              .map((k) => parseOrderCode(k))
+              .filter((id): id is number => typeof id === "number" && id > 0)
+              .map((id) => ({ id })),
           ],
         },
       });

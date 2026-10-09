@@ -3,6 +3,7 @@ import { requireStaff } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { handleRouteError } from "@/lib/api-helpers";
 import { Prisma } from "@prisma/client";
+import { parseOrderCode } from "@/lib/utils";
 
 export async function GET(request: NextRequest) {
   try {
@@ -47,7 +48,7 @@ export async function GET(request: NextRequest) {
     }
 
     if (search) {
-      const searchNum = parseInt(search.replace(/^MCD-ORD-/i, "").replace(/^TSK-ORD-/i, "").replace(/^ORD-/i, ""), 10);
+      const searchNum = parseOrderCode(search) ?? parseInt(search.replace(/^(?:CDI|CF|MCD|TSK)(?:-ORD)?-/i, "").replace(/^ORD-/i, ""), 10);
       const orConditions: Prisma.OrderApiLogWhereInput[] = [
         { errorMessage: { contains: search, mode: "insensitive" } },
         { providerReference: { contains: search, mode: "insensitive" } },

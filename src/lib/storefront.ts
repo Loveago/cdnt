@@ -75,14 +75,21 @@ export function generateStorefrontOrderCode(): string {
 }
 
 export function storefrontOrderCode(seq: number, reference?: string | null): string {
-  if (reference && (reference.startsWith("GH-") || reference.startsWith("STF-"))) {
+  if (
+    reference &&
+    (reference.startsWith("GH-") ||
+      reference.startsWith("STF-") ||
+      reference.startsWith("CDI-") ||
+      reference.startsWith("CF-") ||
+      reference.startsWith("TSK-"))
+  ) {
     return reference;
   }
-  return `CF-ST-${String(seq).padStart(5, "0")}`;
+  return `CDI-ST-${String(seq).padStart(5, "0")}`;
 }
 
 export function withdrawalCode(seq: number): string {
-  return `CF-WD-${String(seq).padStart(5, "0")}`;
+  return `CDI-WD-${String(seq).padStart(5, "0")}`;
 }
 
 /**
@@ -382,7 +389,13 @@ export async function syncCommissionForOrder(
 // ---------------------------------------------------------------------------
 
 export function isStorefrontReference(reference: string): boolean {
-  return reference.startsWith("STF-") || reference.startsWith("GH-");
+  return (
+    reference.startsWith("CDI-") ||
+    reference.startsWith("STF-") ||
+    reference.startsWith("GH-") ||
+    reference.startsWith("CF-ST-") ||
+    reference.startsWith("TSK-")
+  );
 }
 
 /** 10-digit local Ghanaian mobile number starting with 0 (§14). */

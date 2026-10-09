@@ -16,14 +16,21 @@ export function formatGhs(pesewas: number): string {
 }
 
 export function storefrontOrderCode(seq: number, reference?: string | null): string {
-  if (reference && (reference.startsWith("GH-") || reference.startsWith("STF-"))) {
+  if (
+    reference &&
+    (reference.startsWith("GH-") ||
+      reference.startsWith("STF-") ||
+      reference.startsWith("CDI-") ||
+      reference.startsWith("CF-") ||
+      reference.startsWith("TSK-"))
+  ) {
     return reference;
   }
-  return `CF-ST-${String(seq).padStart(5, "0")}`;
+  return `CDI-ST-${String(seq).padStart(5, "0")}`;
 }
 
 export function withdrawalCode(seq: number): string {
-  return `CF-WD-${String(seq).padStart(5, "0")}`;
+  return `CDI-WD-${String(seq).padStart(5, "0")}`;
 }
 
 /**

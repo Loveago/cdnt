@@ -368,7 +368,7 @@ export function NetworkBuyForm({ slug, products, network, storeName }: NetworkBu
                   maxLength={10}
                   required
                   disabled={busy}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/80 px-3.5 py-2.5 text-base font-bold font-mono text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-base font-bold font-mono text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-white/15 dark:bg-[#0c1424] dark:text-white dark:placeholder:text-slate-500 dark:focus:bg-[#0d182b] dark:focus:border-emerald-400 caret-emerald-500 dark:caret-emerald-400 transition-colors"
                 />
               </div>
 
@@ -388,7 +388,7 @@ export function NetworkBuyForm({ slug, products, network, storeName }: NetworkBu
                   placeholder="you@example.com"
                   required
                   disabled={busy}
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50/80 px-3.5 py-2.5 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                  className="w-full rounded-xl border border-slate-300 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-white/15 dark:bg-[#0c1424] dark:text-white dark:placeholder:text-slate-500 dark:focus:bg-[#0d182b] dark:focus:border-emerald-400 caret-emerald-500 dark:caret-emerald-400 transition-colors"
                 />
               </div>
 

@@ -239,7 +239,11 @@ export default function OrdersPage() {
     return detail.orders.filter(
       (o) =>
         o.phoneNumber.toLowerCase().includes(s) ||
-        orderCode(o.id).toLowerCase().includes(s)
+        orderCode(o.id).toLowerCase().includes(s) ||
+        `cf-${10000 + o.id}`.includes(s) ||
+        `tsk-${10000 + o.id}`.includes(s) ||
+        `mcd-${10000 + o.id}`.includes(s) ||
+        String(o.id).includes(s)
     );
   }, [detail, batchSearch]);
 

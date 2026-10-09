@@ -6,6 +6,7 @@ import { changeOrderStatus } from "@/lib/orders";
 import { recordAudit } from "@/lib/audit";
 import { handleRouteError, apiError } from "@/lib/api-helpers";
 import { deliveryReportCode } from "@/lib/types";
+import { parseOrderCode } from "@/lib/utils";
 
 /** Timeline event types mirrored by the report UI (§13). */
 const EVENT_FOR_ACTION: Record<string, string> = {
@@ -53,11 +54,11 @@ export async function GET(request: NextRequest) {
     }
     if (network) where.order = { is: { network } };
     if (q) {
-      const orderId = Number(q.replace(/^CF-/i, "")) - 10000;
+      const orderId = parseOrderCode(q);
       where.OR = [
         { order: { is: { phoneNumber: { contains: q } } } },
         { user: { is: { OR: [{ name: { contains: q } }, { email: { contains: q } }] } } },
-        ...(Number.isFinite(orderId) && orderId > 0 ? [{ orderId }] : []),
+        ...(orderId && orderId > 0 ? [{ orderId }] : []),
       ];
     }
 

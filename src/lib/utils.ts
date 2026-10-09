@@ -6,17 +6,26 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function orderCode(id: number): string {
-  return `CF-${10000 + id}`;
+  return `CDI-${10000 + id}`;
 }
 
-export function parseOrderCode(code: string): number | null {
-  const match = /^CF-(\d+)$/i.exec(code.trim());
+export function parseOrderCode(code: string | null | undefined): number | null {
+  if (!code || typeof code !== "string") return null;
+  const trimmed = code.trim();
+  const match = /^(?:CDI|CF|TSK|MCD)?(?:-?ORD)?-(\d+)$/i.exec(trimmed);
   if (match) {
-    const id = parseInt(match[1], 10) - 10000;
-    return id > 0 ? id : null;
+    const rawNum = parseInt(match[1], 10);
+    if (rawNum > 10000) {
+      return rawNum - 10000;
+    }
+    return rawNum > 0 ? rawNum : null;
   }
-  const asInt = parseInt(code, 10);
-  return Number.isFinite(asInt) && String(asInt) === code.trim() ? asInt : null;
+  const asInt = parseInt(trimmed, 10);
+  if (Number.isFinite(asInt) && String(asInt) === trimmed) {
+    if (asInt > 10000) return asInt - 10000;
+    return asInt > 0 ? asInt : null;
+  }
+  return null;
 }
 
 export function getErrorMessage(error: unknown): string {
