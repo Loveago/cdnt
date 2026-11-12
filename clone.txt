@@ -1,0 +1,1569 @@
+====================================================================================================
+MYCEDINET — COMPLETE SYSTEM CLONE & FEATURE SPECIFICATION MASTER BLUEPRINT
+====================================================================================================
+Version: 2.0.0 Streamlined Single-Order & Multi-API Provider Architecture
+Target: Full ground-up rebuild of MyCediNet Telecom Data Marketplace, Single-Order Dispatch Engine,
+        Multi-Provider API Router, Reseller Storefront Platform, Developer API, and Admin Suite.
+====================================================================================================
+
+ARCHITECTURAL PRINCIPLES OF THIS CLONE:
+1. PURE SINGLE-ORDER ARCHITECTURE:
+   - Every transaction in the system is an independent `Order`.
+   - The complex parent-child "Batch Order" layer (OrderBatch, ExportBatch, batch progress bars,
+     batch codes, and batch status recomputation) has been removed.
+   - Resellers can submit multiple recipients at once (via bulk paste or spreadsheet upload), but the
+     system decomposes them immediately into clean, individual, self-contained `Order` records.
+   - Order management, status transitions, exports, dispute reporting, and developer APIs all operate
+     directly on individual orders.
+
+2. EXTENSIBLE MULTI-API TELECOM PROVIDER SETUP:
+   - Vendor-agnostic Multi-API architecture.
+   - Administrators can configure multiple upstream telecom API providers (e.g. Provider A, Provider B),
+     set their API keys, base URLs, request headers, and assign which telecom network or bundle type routes
+     to which provider (e.g. MTN -> Provider 1, Telecel -> Provider 2, AirtelTigo -> Provider 3).
+   - All outgoing telecom provider requests, responses, status codes, and latencies are recorded in an
+     audit ledger (`OrderApiLog`).
+   - Supports automated dispatch, webhook callbacks, and periodic status polling without hardcoded vendor locks.
+
+====================================================================================================
+TABLE OF CONTENTS:
+====================================================================================================
+1. SYSTEM OVERVIEW & ARCHITECTURAL FOUNDATION
+2. TECH STACK, LIBRARIES & ENVIRONMENT CONFIGURATION
+3. MULTI-DOMAIN ROUTING & REWRITE ARCHITECTURE
+4. STREAMLINED PRISMA DATABASE SCHEMA (DATA MODELS & ENUMS)
+5. AUTHENTICATION, REGISTRATION MODES, RBAC & SECURITY SYSTEM
+6. CORE TELECOM NETWORKS, PACKAGES & PRICING ENGINE
+7. USER ORDERING ENGINES: BUY NOW & MULTI-RECIPIENT SINGLE-ORDER DISPATCH
+8. ORDER LIFECYCLE, STATUS MACHINE & DATA PRIVACY SANITIZATION
+9. NOT RECEIVED / DELIVERY REPORT & DISPUTE INVESTIGATION SYSTEM
+10. WALLET, TOP-UP, PAYSTACK & "SEND & CLAIM" MOMO ENGINE
+11. MTN NUMBER VERIFICATION SUBSYSTEM
+12. CONTROLLED RESELLER STOREFRONT & MARKETPLACE PLATFORM
+13. DEVELOPER API PLATFORM (REST V1 & WEBHOOK ENGINE)
+14. MULTI-API TELECOM PROVIDER ROUTING & AUTOMATION ENGINE
+15. ADMIN CONTROL CENTER & OPERATIONS SUITE
+16. SYSTEM SETTINGS & DYNAMIC CONFIGURATION REGISTRY
+17. COMPLETE API ROUTE HANDLERS CATALOG
+18. FRONTEND COMPONENT ARCHITECTURE & UI DESIGN SYSTEM
+19. STEP-BY-STEP IMPLEMENTATION & CLONING BLUEPRINT
+
+====================================================================================================
+1. SYSTEM OVERVIEW & ARCHITECTURAL FOUNDATION
+====================================================================================================
+MyCediNet is a high-performance telecom data bundle provisioning and reseller platform operating in Ghana.
+It bridges telecom data wholesalers and end-users through automated APIs and reseller tools.
+
+Target User Personas:
+1. Retail Customers: Purchase data bundles directly with instant MoMo/Card payment.
+2. Resellers & Agents: Submit multiple customer orders simultaneously, manage client lists,
+   open custom-branded white-label storefronts, and earn withdrawable cash commissions.
+3. Developers & Enterprise Partners: Integrate data bundle fulfillment into external applications,
+   websites, or ERP systems using an authenticated REST API.
+4. Administrators & Operations Staff: Oversee provider order dispatching, user balances,
+   telecom provider routing, dispute tickets, and platform settings.
+
+Supported Telecom Networks in Ghana:
+- MTN Ghana (1GB to 100GB+)
+- Telecel Ghana (formerly Vodafone Ghana, 1GB to 50GB+)
+- AirtelTigo Ghana (AT iShare & AT Big Time allocations)
+
+Core Architectural Highlights:
+- Unified Multi-Domain VPS Hosting: Main application (`mycedinet.com`) and white-label storefronts
+  (`mycedinetstore.com` or `mycedishop.com`) run from a single Next.js deployment.
+- Direct Single-Order Processing: Orders are processed individually with atomic financial debits,
+  clear order codes (`CF-OR-01042`), and granular status tracking.
+- Multi-Provider Telecom Abstraction: Clean adapter interface for upstream telecom gateways with
+  per-network routing rules, automated dispatch, and fallback staging.
+- Decoupled Financial Ledgers: Separate user wallet (for bundle purchases) and storefront commission
+  wallet (for reseller profits in integer pesewas).
+- Automated "Send & Claim" MoMo Top-Up: Real-time Android SMS webhook parsing and automatic credit.
+
+====================================================================================================
+2. TECH STACK, LIBRARIES & ENVIRONMENT CONFIGURATION
+====================================================================================================
+Framework & Runtime:
+- Next.js 15+ (App Router, Server Actions, Route Handlers, Edge/Node Middleware)
+- TypeScript 5.9+
+- Node.js 20+ / 24+
+- React 19
+
+Styling & UI Components:
+- Tailwind CSS v4 (@tailwindcss/postcss)
+- Icons: `lucide-react`
+- Theme System: `next-themes` (High-contrast obsidian dark mode default: `#060b13` background)
+- UI Utilities: `clsx`, `tailwind-merge`
+- Feedback: Custom Toasts, responsive dialogs, modal sheets, progress bars, lightboxes.
+
+Database & Data Management:
+- PostgreSQL (Neon, Supabase, or native Linux VPS PostgreSQL)
+- Prisma ORM 6.16+
+- ExcelJS: Vendor Excel workbook generation and customer spreadsheet parsing.
+
+Security, Auth & Cryptography:
+- `jose`: Stateless signed JWT cookies and OTP tickets.
+- `bcryptjs`: Password hashing with salt factor 10.
+- Node.js `crypto`: HMAC SHA-256 for developer API keys and webhooks.
+
+Third-Party Services:
+- Paystack Ghana: Instant Card & Mobile Money checkout for wallet top-ups and storefront sales.
+- Brevo (Sendinblue): Transactional email API for login OTP two-factor codes and alerts.
+- Android SMS Forwarder: HTTP POST forwarder on Android merchant phones for MoMo top-ups.
+- Upstream Telecom APIs: Configurable REST endpoints for automated bundle delivery.
+
+Environment Configuration (.env):
+----------------------------------------------------------------------------------------------------
+DATABASE_URL="postgresql://user:password@localhost:5432/mycedinet?sslmode=require"
+AUTH_SECRET="generate-a-secure-random-64-character-secret"
+PAYSTACK_SECRET_KEY="your_paystack_secret_key_here"
+
+ADMIN_EMAIL="admin@mycedinet.com"
+ADMIN_PASSWORD="ChooseAStrongPassword123!"
+ADMIN_NAME="MyCediNet Admin"
+
+MAIN_DOMAIN="mycedinet.com"
+NEXT_PUBLIC_MAIN_DOMAIN="mycedinet.com"
+STOREFRONT_DOMAIN="mycedinetstore.com"
+NEXT_PUBLIC_STOREFRONT_DOMAIN="mycedinetstore.com"
+
+SMS_FORWARDER_SECRET="your_secure_sms_forwarder_secret"
+----------------------------------------------------------------------------------------------------
+
+====================================================================================================
+3. MULTI-DOMAIN ROUTING & REWRITE ARCHITECTURE
+====================================================================================================
+A single Next.js application serves both domains through Next.js Edge Middleware (`src/middleware.ts`):
+
+Main Platform (`mycedinet.com`):
+- Serves `/` (redirects to dashboard or login), `/login`, `/register`, `/forgot-password`, `/reset-password`.
+- Serves `/dashboard/*`: Reseller operations (Buy Now, Send Orders, Orders, Packages, Billing, Storefront, API).
+- Serves `/admin/*`: Restricted to `ADMIN` and `MANAGER` roles.
+- Serves `/v1/*`: Public Developer REST API.
+- Handle Shortcut: Visiting `mycedinet.com/@loveagostore` redirects to `https://mycedinetstore.com/loveagostore`.
+
+Dedicated Storefront Domain (`mycedinetstore.com` or `mycedishop.com`):
+- Security Restriction: Any access to `/admin` or `/dashboard` redirects to `https://mycedinet.com/login`.
+- Clean Customer Rewrites:
+  * `mycedinetstore.com/` -> Internally rewritten to `/store` (Discovery homepage).
+  * `mycedinetstore.com/:slug` -> Internally rewritten to `/store/:slug` (Reseller store).
+  * `mycedinetstore.com/:slug/:network` -> Internally rewritten to `/store/:slug/:network` (Carrier bundles).
+  * `mycedinetstore.com/:slug/track` -> Internally rewritten to `/store/:slug/track` (Order tracker & disputes).
+  * `mycedinetstore.com/:slug/order/:reference` -> Internally rewritten to `/store/:slug/order/:reference` (Receipt).
+  * Dedicated favicon & icons: `/favicon.ico` rewrites to `/store/icon.svg`.
+
+====================================================================================================
+4. STREAMLINED PRISMA DATABASE SCHEMA (DATA MODELS & ENUMS)
+====================================================================================================
+Below is the clean schema definition without batch wrappers and without vendor-specific locks:
+
+```prisma
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------------------------------------------------------------------------
+// 1. Users & Authentication
+// ---------------------------------------------------------------------------
+model User {
+  id               String          @id @default(cuid())
+  name             String
+  email            String          @unique
+  passwordHash     String
+  role             String          @default("USER") // ADMIN | MANAGER | SECRETARY | RESELLER | AGENT | USER
+  status           String          @default("ACTIVE") // ACTIVE | DISABLED | FROZEN | PENDING_PAYMENT
+  balance          Float           @default(0) // Ghana Cedis (GHS)
+  phone            String?
+  pricingProfileId String?
+  pricingProfile   PricingProfile? @relation(fields: [pricingProfileId], references: [id])
+  tokenVersion     Int             @default(0) // Incremented to revoke all active sessions
+  lastLoginAt      DateTime?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  orders                  Order[]
+  apiKeys                 ApiKey[]
+  auditLogs               AuditLog[]
+  resetTokens             PasswordResetToken[]
+  walletTransactions      WalletTransaction[]
+  deliveryReports         DeliveryReport[]
+  storefront              Storefront?
+  storefrontWallet        StorefrontWallet?
+  storefrontWithdrawals   StorefrontWithdrawal[]
+  apiApplication          ApiApplication?
+  apiCredentials          ApiCredential[]
+  apiWebhook              ApiWebhook?
+  sendClaims              SendClaim[]
+  signupCodeUsage         SignupCodeUsage?
+  mtnVerificationRequests MtnVerificationRequest[]
+
+  @@index([role])
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// 2. Pricing Profiles & Tier Matrices
+// ---------------------------------------------------------------------------
+model PricingProfile {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  type      String   @default("RETAIL") // RETAIL | RESELLER | WHOLESALE | MANAGER
+  active    Boolean  @default(true)
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tiers PriceTier[]
+  users User[]
+}
+
+model PriceTier {
+  id        String         @id @default(cuid())
+  profileId String
+  profile   PricingProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  gbAmount  Float
+  priceGHS  Float
+
+  @@unique([profileId, gbAmount])
+}
+
+// ---------------------------------------------------------------------------
+// 3. Data Packages Catalog
+// ---------------------------------------------------------------------------
+model DataPackage {
+  id                String   @id @default(cuid())
+  network           String   // MTN | TELECEL | AIRTELTIGO | AIRTELTIGO_BIGTIME
+  name              String   // e.g. "MTN 5GB Non-Expiry"
+  gbAmount          Float
+  description       String?
+  providerProductId String?  // External bundle code for provider dispatch
+  retailPriceGHS    Float?
+  active            Boolean  @default(true)
+  sortOrder         Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  orders             Order[]
+  storefrontProducts StorefrontProduct[]
+
+  @@unique([network, gbAmount])
+}
+
+// ---------------------------------------------------------------------------
+// 4. Streamlined Orders (Pure Single-Order Architecture)
+// ---------------------------------------------------------------------------
+model Order {
+  id                Int            @id @default(autoincrement())
+  userId            String
+  user              User           @relation(fields: [userId], references: [id])
+  phoneNumber       String         // Normalized Ghanaian 10-digit number
+  network           String         // MTN | TELECEL | AIRTELTIGO | AIRTELTIGO_BIGTIME
+  packageId         String?
+  dataPackage       DataPackage?   @relation(fields: [packageId], references: [id])
+  gbAmount          Float
+  amount            Float          // Cost charged to user in GHS
+  status            String         @default("PENDING") // PENDING | PROCESSING | SUCCESS | FAILED | CANCELLED | REFUNDED
+  provider          String?        // Active provider name (e.g. "PROVIDER_PRIMARY", "PROVIDER_BACKUP")
+  providerReference String?        // External reference from upstream telecom API
+  failureReason     String?        // Sanitized failure message
+  source            String         @default("WEB") // WEB | API | STOREFRONT
+  completedAt       DateTime?
+  externalReference String?        // Client-supplied idempotency key
+  apiCredentialId   String?
+  apiCredential     ApiCredential? @relation(fields: [apiCredentialId], references: [id], onDelete: SetNull)
+  isSandbox         Boolean        @default(false)
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  history         OrderStatusHistory[]
+  deliveryReports DeliveryReport[]
+  storefrontOrder StorefrontOrder?
+  apiLogs         OrderApiLog[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+  @@index([phoneNumber])
+  @@index([network])
+  @@index([externalReference])
+  @@index([userId, externalReference])
+  @@index([apiCredentialId])
+  @@index([isSandbox])
+}
+
+model OrderStatusHistory {
+  id             Int      @id @default(autoincrement())
+  orderId        Int
+  order          Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status         String
+  previousStatus String?
+  note           String?
+  changedBy      String   @default("system")
+  createdAt      DateTime @default(now())
+
+  @@index([orderId])
+}
+
+// ---------------------------------------------------------------------------
+// 5. Delivery Reports (Dispute & Not Received Tickets)
+// ---------------------------------------------------------------------------
+model DeliveryReport {
+  id                   String    @id @default(cuid())
+  seq                  Int       @unique // Formats to NR-00001
+  orderId              Int
+  order                Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  userId               String
+  user                 User      @relation(fields: [userId], references: [id])
+  reason               String?
+  message              String?
+  status               String    @default("OPEN") // OPEN | UNDER_REVIEW | INVESTIGATING | CONFIRM_SENT | RESOLVED | REFUNDED | REJECTED
+  adminNote            String?
+  adminResponse        String?
+  respondedAt          DateTime?
+  respondedBy          String?
+  proofImageMime       String?   // image/jpeg | image/png
+  proofImage           String?   // Base64 delivery evidence
+  proofImageUploadedAt DateTime?
+  proofImageUploadedBy String?
+  resolvedAt           DateTime?
+  resolvedBy           String?
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  events DeliveryReportEvent[]
+
+  @@index([orderId])
+  @@index([userId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+model DeliveryReportEvent {
+  id         Int            @id @default(autoincrement())
+  reportId   String
+  report     DeliveryReport @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  type       String         // SUBMITTED | INVESTIGATION_STARTED | RESPONSE_ADDED | EVIDENCE_UPLOADED | CONFIRM_SENT | REFUND | REJECTED | RESOLVED
+  message    String?
+  actorLabel String         @default("system")
+  createdAt  DateTime       @default(now())
+
+  @@index([reportId, createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// 6. Multi-API Provider Logs & Developer Requests
+// ---------------------------------------------------------------------------
+model OrderApiLog {
+  id                Int      @id @default(autoincrement())
+  orderId           Int?
+  order             Order?   @relation(fields: [orderId], references: [id], onDelete: SetNull)
+  provider          String   // Provider identifier
+  action            String   // DISPATCH | CHECK_STATUS | NOT_RECEIVED | WEBHOOK
+  endpoint          String
+  method            String   @default("POST")
+  requestPayload    String?  @db.Text
+  responsePayload   String?  @db.Text
+  statusCode        Int?
+  success           Boolean  @default(false)
+  errorMessage      String?  @db.Text
+  providerReference String?
+  durationMs        Int?
+  createdAt         DateTime @default(now())
+
+  @@index([orderId])
+  @@index([provider])
+  @@index([action])
+  @@index([success])
+  @@index([statusCode])
+  @@index([createdAt])
+}
+
+model ApiKey {
+  id           String    @id @default(cuid())
+  name         String
+  prefix       String
+  keyHash      String    @unique
+  userId       String
+  user         User      @relation(fields: [userId], references: [id])
+  active       Boolean   @default(true)
+  lastUsedAt   DateTime?
+  requestCount Int       @default(0)
+  createdAt    DateTime  @default(now())
+
+  logs ApiRequestLog[]
+}
+
+model ApiRequestLog {
+  id             Int            @id @default(autoincrement())
+  apiKeyId       String?
+  apiKey         ApiKey?        @relation(fields: [apiKeyId], references: [id], onDelete: SetNull)
+  credentialId   String?
+  credential     ApiCredential? @relation(fields: [credentialId], references: [id], onDelete: SetNull)
+  userId         String?
+  requestId      String?
+  endpoint       String
+  method         String
+  status         Int
+  success        Boolean
+  ip             String?
+  userAgent      String?
+  environment    String?        // PRODUCTION | SANDBOX
+  errorCode      String?
+  responseTimeMs Int?
+  createdAt      DateTime       @default(now())
+
+  @@index([apiKeyId])
+  @@index([credentialId])
+  @@index([userId])
+  @@index([requestId])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// 7. System Audit & Registry
+// ---------------------------------------------------------------------------
+model AuditLog {
+  id            Int      @id @default(autoincrement())
+  userId        String?
+  user          User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  actorLabel    String   @default("system")
+  action        String
+  target        String
+  previousValue String?  @db.Text
+  newValue      String?  @db.Text
+  ip            String?
+  userAgent     String?
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([userId])
+}
+
+model SystemSetting {
+  key       String   @id
+  value     String   @db.Text
+  updatedAt DateTime @updatedAt
+}
+
+model IdempotencyKey {
+  key       String   @id
+  userId    String
+  orderId   Int?
+  status    String?
+  response  String?  @db.Text
+  createdAt DateTime @default(now())
+}
+
+model PasswordResetToken {
+  token     String    @id
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// 8. Financial Ledger (User Wallet)
+// ---------------------------------------------------------------------------
+model WalletTransaction {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String   // TOPUP | DEBIT | REFUND | ADJUSTMENT
+  amount    Float    // GHS
+  status    String   @default("PENDING") // PENDING | APPROVED | REJECTED
+  reference String?  // Paystack reference or MoMo Transaction ID
+  note      String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  sendClaim SendClaim?
+
+  @@index([userId])
+  @@index([status])
+  @@index([reference])
+}
+
+// ---------------------------------------------------------------------------
+// 9. Storefront & Reseller Marketplace
+// ---------------------------------------------------------------------------
+model Storefront {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  slug              String   @unique
+  name              String
+  description       String?
+  logoUrl           String?
+  bannerUrl         String?
+  phone             String?
+  whatsapp          String?
+  whatsappGroupLink String?
+  email             String?
+  location          String?
+  payoutNetwork     String?  // MTN | TELECEL | AIRTELTIGO
+  payoutNumber      String?
+  payoutAccountName String?
+  status            String   @default("NOT_ENABLED") // NOT_ENABLED | PENDING | ENABLED | SUSPENDED | REJECTED
+  isActive          Boolean  @default(true)
+  contactText       String?
+  whatsappLabel     String?
+  notice            String?
+  rejectionNote     String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  products StorefrontProduct[]
+  orders   StorefrontOrder[]
+
+  @@index([status])
+}
+
+model StorefrontProduct {
+  id           String      @id @default(cuid())
+  storefrontId String
+  storefront   Storefront  @relation(fields: [storefrontId], references: [id], onDelete: Cascade)
+  packageId    String
+  dataPackage  DataPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  sellingPrice Int         // Exact integer pesewas (100 pesewas = GHS 1.00)
+  isActive     Boolean     @default(true)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  orders StorefrontOrder[]
+
+  @@unique([storefrontId, packageId])
+  @@index([storefrontId, isActive])
+}
+
+model StorefrontOrder {
+  id                String            @id @default(cuid())
+  seq               Int               @unique // Formats to CF-ST-00001
+  storefrontId      String
+  storefront        Storefront        @relation(fields: [storefrontId], references: [id], onDelete: Cascade)
+  productId         String
+  product           StorefrontProduct @relation(fields: [productId], references: [id])
+  underlyingOrderId Int?              @unique
+  underlyingOrder   Order?            @relation(fields: [underlyingOrderId], references: [id])
+  customerPhone     String
+  customerEmail     String?
+  sellingPrice      Int               // Pesewas
+  productCost       Int               // Pesewas
+  commission        Int               // Pesewas (sellingPrice - productCost)
+  status            String            @default("PENDING") // PENDING | PROCESSING | COMPLETED | FAILED | REFUNDED
+  commissionState   String            @default("PENDING") // PENDING | AVAILABLE | WITHDRAWN | REVERSED
+  paymentReference  String            @unique
+  paidAt            DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  @@index([storefrontId, createdAt])
+  @@index([storefrontId, status])
+  @@index([commissionState])
+}
+
+model StorefrontWallet {
+  id             String   @id @default(cuid())
+  userId         String   @unique
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  balance        Int      @default(0) // Pesewas (AVAILABLE)
+  pendingBalance Int      @default(0) // Pesewas (PENDING)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  transactions StorefrontWalletTransaction[]
+}
+
+model StorefrontWalletTransaction {
+  id            String           @id @default(cuid())
+  walletId      String
+  wallet        StorefrontWallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  type          String           // COMMISSION | COMMISSION_RELEASE | COMMISSION_REVERSAL | WITHDRAWAL | WITHDRAWAL_REVERSAL | ADJUSTMENT
+  amount        Int              // Pesewas
+  balanceBefore Int              // Pesewas
+  balanceAfter  Int              // Pesewas
+  pendingBefore Int?
+  pendingAfter  Int?
+  reference     String?
+  description   String?
+  createdAt     DateTime         @default(now())
+
+  @@index([walletId, createdAt])
+  @@index([reference])
+}
+
+model StorefrontWithdrawal {
+  id          String    @id @default(cuid())
+  seq         Int       @unique // Formats to CF-WD-00001
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amount      Int       // Gross pesewas
+  fee         Int       @default(100) // 100 pesewas = GHS 1.00 fee
+  netAmount   Int?      // Net payout pesewas
+  network     String    // MTN | TELECEL | AIRTELTIGO
+  momoNumber  String
+  accountName String
+  status      String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  reference   String?
+  note        String?
+  adminNote   String?
+  processedBy String?
+  requestedAt DateTime  @default(now())
+  processedAt DateTime?
+
+  @@index([userId])
+  @@index([status])
+}
+
+// ---------------------------------------------------------------------------
+// 10. Developer API Platform
+// ---------------------------------------------------------------------------
+model ApiApplication {
+  id                    String    @id @default(cuid())
+  userId                String    @unique
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessName          String
+  websiteUrl            String
+  usageDescription      String    @db.Text
+  expectedMonthlyVolume String
+  contactEmail          String
+  contactPhone          String
+  applicationType       String
+  webhookUrl            String?
+  termsAccepted         Boolean   @default(true)
+  status                String    @default("PENDING") // NOT_APPLIED | PENDING | APPROVED | REJECTED | SUSPENDED
+  adminNotes            String?
+  reviewedAt            DateTime?
+  reviewedBy            String?
+
+  allowedScopes         String    @default("networks:read,packages:read,orders:create,orders:read,orders:status,balance:read,webhooks:manage,numbers:verify")
+  rateLimitPerMin       Int       @default(60)
+  dailyRequestLimit     Int       @default(5000)
+  ipRestrictions        String?
+
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  @@index([status])
+}
+
+model ApiCredential {
+  id              String          @id @default(cuid())
+  userId          String
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name            String
+  environment     String          @default("PRODUCTION") // PRODUCTION | SANDBOX
+  keyPrefix       String          // e.g. "ck_live_9a8b"
+  keyHash         String          @unique // SHA-256 hash
+  secretHash      String?
+  status          String          @default("ACTIVE") // ACTIVE | DISABLED | REVOKED
+  scopes          String          @default("networks:read,packages:read,orders:create,orders:read,orders:status,balance:read,webhooks:manage")
+  rateLimitPerMin Int             @default(60)
+  dailyLimit      Int             @default(5000)
+  allowedIps      String?
+  lastUsedAt      DateTime?
+  requestCount    Int             @default(0)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  orders Order[]
+  logs   ApiRequestLog[]
+
+  @@index([userId])
+  @@index([keyHash])
+  @@index([status])
+}
+
+model ApiWebhook {
+  id        String               @id @default(cuid())
+  userId    String               @unique
+  user      User                 @relation(fields: [userId], references: [id], onDelete: Cascade)
+  url       String
+  secret    String               // Secret for HMAC SHA-256 signatures
+  events    String               @default("order.created,order.processing,order.completed,order.failed,order.cancelled")
+  active    Boolean              @default(true)
+  createdAt DateTime             @default(now())
+  updatedAt DateTime             @updatedAt
+
+  deliveries ApiWebhookDelivery[]
+
+  @@index([userId])
+}
+
+model ApiWebhookDelivery {
+  id             String      @id @default(cuid())
+  webhookId      String
+  webhook        ApiWebhook  @relation(fields: [webhookId], references: [id], onDelete: Cascade)
+  event          String
+  orderId        Int?
+  payload        String      @db.Text
+  url            String
+  signature      String?
+  attempt        Int         @default(1)
+  maxAttempts    Int         @default(5)
+  statusCode     Int?
+  responseTimeMs Int?
+  responseBody   String?     @db.Text
+  error          String?
+  status         String      @default("PENDING") // PENDING | SUCCESS | FAILED
+  nextRetryAt    DateTime?
+  deliveredAt    DateTime?
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  @@index([webhookId])
+  @@index([status])
+  @@index([createdAt])
+}
+
+// ---------------------------------------------------------------------------
+// 11. Send & Claim Mobile Money Top-Up Engine
+// ---------------------------------------------------------------------------
+model IncomingMomoTransaction {
+  id                   String      @id @default(cuid())
+  transactionReference String      @unique // e.g. 28471928374
+  network              String      // MTN | TELECEL | AIRTELTIGO
+  amount               Float
+  currency             String      @default("GHS")
+  senderPhone          String?
+  recipientPhone       String?
+  transactionAt        DateTime?
+  rawSms               String      @db.Text
+  parsedData           String?     @db.Text
+  source               String      @default("SMS_FORWARDER")
+  status               String      @default("AVAILABLE") // AVAILABLE | CLAIMED | EXPIRED
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  claims SendClaim[]
+
+  @@index([transactionReference])
+  @@index([network])
+  @@index([status])
+}
+
+model SendClaim {
+  id                        String                   @id @default(cuid())
+  userId                    String
+  user                      User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  incomingMomoTransactionId String?
+  incomingTransaction       IncomingMomoTransaction? @relation(fields: [incomingMomoTransactionId], references: [id], onDelete: SetNull)
+  walletTransactionId       String?                  @unique
+  walletTransaction         WalletTransaction?       @relation(fields: [walletTransactionId], references: [id], onDelete: SetNull)
+  transactionReference      String
+  claimedAmount             Float
+  network                   String
+  senderPhone               String?
+  status                    String                   @default("APPROVED") // PENDING | APPROVED | REJECTED
+  rejectionReason           String?
+  ipAddress                 String?
+  userAgent                 String?
+  createdAt                 DateTime                 @default(now())
+  processedAt               DateTime?
+
+  @@index([userId])
+  @@index([status])
+  @@index([transactionReference])
+}
+
+model SendClaimSettings {
+  id               String   @id @default("default")
+  enabled          Boolean  @default(true)
+  network          String   @default("MTN")
+  momoNumber       String   @default("0240000000")
+  accountName      String   @default("MyCediNet")
+  instructions     String?  @db.Text
+  minimumAmount    Float    @default(1)
+  maximumAmount    Float    @default(5000)
+  claimExpiryHours Int      @default(168)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+}
+
+// ---------------------------------------------------------------------------
+// 12. Sign-up Codes
+// ---------------------------------------------------------------------------
+model SignupCode {
+  id         String            @id @default(cuid())
+  code       String            @unique
+  status     String            @default("ACTIVE") // ACTIVE | DISABLED | EXHAUSTED | EXPIRED
+  maxUses    Int?
+  usageCount Int               @default(0)
+  expiresAt  DateTime?
+  createdBy  String?
+  notes      String?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+
+  usages SignupCodeUsage[]
+
+  @@index([code])
+  @@index([status])
+}
+
+model SignupCodeUsage {
+  id           String     @id @default(cuid())
+  signupCodeId String
+  signupCode   SignupCode @relation(fields: [signupCodeId], references: [id], onDelete: Cascade)
+  userId       String     @unique
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  usedAt       DateTime   @default(now())
+  ipAddress    String?
+  userAgent    String?
+
+  @@index([signupCodeId])
+  @@index([userId])
+}
+
+// ---------------------------------------------------------------------------
+// 13. MTN Number Verification
+// ---------------------------------------------------------------------------
+model AcceptedMtnNumber {
+  id               String   @id @default(cuid())
+  number           String
+  normalizedNumber String   @unique // 10-digit number e.g. 0241234567
+  source           String   @default("MANUAL") // MANUAL | IMPORT_FILE
+  verifiedAt       DateTime @default(now())
+  verifiedBy       String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([normalizedNumber])
+}
+
+model MtnVerificationRequest {
+  id               String    @id @default(cuid())
+  userId           String
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  number           String
+  normalizedNumber String
+  status           String    @default("SUBMITTED") // SUBMITTED | PROCESSING | VERIFIED | REJECTED
+  submittedAt      DateTime  @default(now())
+  processedAt      DateTime?
+  verifiedAt       DateTime?
+  rejectedAt       DateTime?
+  rejectionReason  String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([normalizedNumber])
+  @@index([status])
+}
+
+model BlockedMtnNumber {
+  id               String   @id @default(cuid())
+  number           String
+  normalizedNumber String   @unique
+  firstSeenAt      DateTime @default(now())
+  lastSeenAt       DateTime @default(now())
+  orderCount       Int      @default(1)
+  status           String   @default("UNVERIFIED")
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@index([normalizedNumber])
+}
+```
+
+====================================================================================================
+5. AUTHENTICATION, REGISTRATION MODES, RBAC & SECURITY SYSTEM
+====================================================================================================
+User Roles & Permissions:
+- `ADMIN`: Full system authority (system settings, user balances, multi-provider API setup, audit logs).
+- `MANAGER`: Operational management (orders, refunds, delivery dispute resolution, verification lists).
+- `SECRETARY`: Front-desk support. Access restricted to paths in `secretary_allowed_pages`. Can log in without OTP.
+- `RESELLER` / `AGENT`: Places data bundle orders, accesses Developer API, opens customized Storefronts.
+- `USER`: Retail consumer. Buys data bundles and tracks personal orders.
+
+User Statuses:
+- `ACTIVE`: Normal access.
+- `DISABLED`: Account blocked. Immediate rejection at middleware.
+- `FROZEN`: Account locked from creating new orders or requesting payouts.
+- `PENDING_PAYMENT`: Awaiting initial registration fee payment via Paystack.
+
+Registration Workflows (`POST /api/auth/register`):
+1. Admin Gate: Controlled via `allow_user_registration` setting.
+2. Signup Code Verification: Controlled via `signup_code_mode` ("DISABLED", "OPTIONAL", "REQUIRED").
+   - When REQUIRED: Validates existence, expiry, and available usages. Atomically claims usage in Prisma transaction.
+3. Optional Registration Fee:
+   - Configured via `signup_fee_enabled` ("true"/"false") and `signup_fee_amount` (e.g. "10.00").
+   - If enabled: Creates user with `status: "PENDING_PAYMENT"`, initializes Paystack transaction,
+     returns `authorizationUrl` to frontend. User is activated upon payment callback (`/api/auth/register-fee/callback`).
+
+Login & Email OTP Two-Factor Authentication (`POST /api/auth/login`):
+1. Verifies email & bcrypt password hash.
+2. Admin toggle: `login_otp_enabled` ("true"/"false"):
+   - If disabled (or SECRETARY with `secretary_login_without_otp === "true"`):
+     Directly sets `mycedinet_session` JWT cookie.
+   - If enabled:
+     * Generates a 6-digit numeric OTP code (`crypto.randomInt(100000, 1000000)`).
+     * Creates a signed JWT ticket (10-minute expiry) containing HMAC hash of code and single-use `jti`.
+     * Sends code to user's email via Brevo transactional email API.
+     * Returns `{ requiresOtp: true, ticket: "..." }`.
+3. Verify OTP (`POST /api/auth/verify-otp`):
+   - Validates ticket, matches code, enforces single-use replay protection, sets session cookie.
+
+Session Management & Revocation:
+- Stateless signed JWT stored in HTTP-only `mycedinet_session` cookie (7-day duration, Lax).
+- Payload includes `sub: userId`, `email`, `role`, and `tv: tokenVersion`.
+- Global Revocation: Incrementing `user.tokenVersion` in database instantly revokes all active sessions.
+
+====================================================================================================
+6. CORE TELECOM NETWORKS, PACKAGES & PRICING ENGINE
+====================================================================================================
+Networks:
+- `MTN`: 024, 025, 053, 054, 055, 059
+- `TELECEL`: 020, 050
+- `AIRTELTIGO`: 026, 027, 056, 057 (AT iShare)
+- `AIRTELTIGO_BIGTIME`: Long-validity AT allocations
+
+DataPackage Catalog (`DataPackage`):
+- `network`: Telecom network enum.
+- `name`: Package label (e.g. "MTN 10GB Non-Expiry").
+- `gbAmount`: Numeric size in GB (0.5, 1, 2, 5, 10, 20, 50, etc.).
+- `providerProductId`: Provider bundle code dispatched to upstream API.
+- `retailPriceGHS`: Baseline retail price.
+- `active`: Boolean switch toggled by admin.
+
+Dynamic Pricing Resolution (`calculateOrderPrice`):
+1. If ordering user has assigned `pricingProfileId`:
+   Queries `PriceTier` for matching `(profileId, gbAmount)`.
+2. If found, returns custom tiered `priceGHS`.
+3. If no matching tier or profile: Queries `DataPackage` for `retailPriceGHS`.
+
+====================================================================================================
+7. USER ORDERING ENGINES: BUY NOW & MULTI-RECIPIENT SINGLE-ORDER DISPATCH
+====================================================================================================
+Pure Single-Order Philosophy:
+- Every order placed is recorded as an independent `Order` row in the database.
+- There are NO parent `OrderBatch` wrappers, NO batch codes (`CF-BATCH-...`), and NO batch status polling.
+
+1. "Buy Now" Instant Purchase (`/dashboard/buy-now`):
+   - Fast single-bundle purchase.
+   - User selects carrier brand (MTN yellow, Telecel red, AT navy).
+   - Filter chips: All, Popular, Light (<3GB), Heavy (5GB+).
+   - Recipient phone input: Normalizes `+233`/`0` to 10-digits, verifies network prefix.
+   - Deducts user's `balance`, inserts single `Order`, triggers provider dispatch.
+
+2. Multi-Recipient Send Orders (`/dashboard/send`):
+   - Resellers frequently need to submit 10, 50, or 200 orders at once.
+   - Reseller inputs orders via:
+     * Spacious Bulk Paste Textarea: Accepts any format (`0241234567 5GB`, `0501234567, 10`, `0271234567 - 2.5GB`).
+     * Spreadsheet Upload (.xlsx / .csv): Auto-detects Phone & Volume columns using ExcelJS.
+   - Pre-Submission Client Protections:
+     * Ported Number Modal: Warns if phone prefix belongs to a different network and asks for confirmation.
+     * MTN Verification Check: Warns if MTN numbers are not verified and provides 1-click submission.
+     * Insufficient Balance Modal: Shows deficit, provides 1-click button to copy orders back to clipboard,
+       and offers top-up link.
+     * Browser Draft Autosave: Preserves draft in `localStorage` across page reloads.
+   - Direct Single-Order Submission (`POST /api/orders`):
+     * The server iterates through the parsed lines.
+     * In a single atomic Prisma transaction:
+       - Verifies user's total wallet balance covers all order lines.
+       - Deducts `user.balance` for the total cost.
+       - Creates a single `WalletTransaction` of type `DEBIT`.
+       - Inserts each recipient line as an independent `Order` record with a unique order code (`CF-OR-01042`).
+     * Returns the array of created single orders.
+     * Triggers asynchronous telecom provider dispatch for each order.
+
+====================================================================================================
+8. ORDER LIFECYCLE, STATUS MACHINE & DATA PRIVACY SANITIZATION
+====================================================================================================
+Order Statuses:
+- `PENDING`: Order recorded and debited; queued for telecom dispatch.
+- `PROCESSING`: Dispatched to upstream telecom provider API.
+- `SUCCESS`: Confirmed delivered by telecom carrier.
+- `FAILED`: Delivery failed by carrier (inactive SIM, invalid number, network failure).
+- `CANCELLED`: Aborted before delivery attempt.
+- `REFUNDED`: Failed/cancelled order refunded; funds credited back to user's wallet.
+
+Status Transition Rules:
+- PENDING -> PROCESSING, SUCCESS (admin override), FAILED, CANCELLED.
+- PROCESSING -> SUCCESS, FAILED, CANCELLED.
+- SUCCESS -> REFUNDED (admin override), FAILED (admin override).
+- FAILED -> PROCESSING, PENDING, REFUNDED.
+- CANCELLED -> REFUNDED.
+- REFUNDED -> Terminal state.
+
+Automated Refund Mechanics:
+- When an order transitions to `REFUNDED`:
+  * Atomically increments `user.balance` by `order.amount`.
+  * Creates `WalletTransaction` of type `REFUND`.
+  * Records actor and reason in `OrderStatusHistory`.
+  * If the order originated from a Reseller Storefront, reverses the commission in `StorefrontWallet`.
+
+Data Privacy & Note Sanitization (`src/lib/types.ts`):
+- All status notes, logs, and failure reasons visible to users or public storefront buyers are passed through
+  `sanitizeCustomerRefundNote` and `sanitizeCustomerFacingText`.
+- Strips upstream provider names and wholesale costs:
+  * Example: Provider error `"Refunded GHS 18.75 on UpstreamProvider"` becomes `"Refunded GHS 25.00"` (reflecting the user's purchase price).
+  * Example: `"dispatched via UpstreamProvider API"` becomes `"Dispatched for automated delivery"`.
+
+Orders Table Interface (`/dashboard/orders`):
+- Single Orders View:
+  * Columns: Order Code, Recipient Phone, Network Badge, Bundle Size, Amount (GHS), Status Badge,
+    Created Date, Actions ("Report Not Received", "View History").
+  * Filters: Carrier dropdown (MTN, Telecel, AT), Status dropdown, Date Range filter (Today, Yesterday,
+    Last 7 Days, Last 30 Days, Custom Range), Search query (phone or order code).
+  * Direct Export to Excel: Download filtered orders as an Excel file.
+
+====================================================================================================
+9. NOT RECEIVED / DELIVERY REPORT & DISPUTE INVESTIGATION SYSTEM
+====================================================================================================
+Dispute Window:
+- Users or storefront customers can file a "Not Received" dispute report within 24 hours of order completion (`completedAt`).
+- Live countdown indicates remaining time (e.g. "18h 42m remaining").
+
+Filing Flow (`POST /api/reports/not-received`):
+- Submits `orderId`, `reason` (dropdown: "Data not received", "Wrong bundle credited", etc.), and optional message.
+- Generates sequenced report code: `NR-00001` (`deliveryReportCode(seq)`).
+- Sets status: `OPEN`.
+
+Investigation Timeline (`DeliveryReportEvent`):
+- Append-only timeline showing chronological history:
+  * `SUBMITTED`: Report created.
+  * `INVESTIGATION_STARTED`: Staff flagged for review.
+  * `RESPONSE_ADDED`: Staff appended communication.
+  * `EVIDENCE_UPLOADED`: Staff uploaded delivery proof receipt.
+  * `CONFIRM_SENT`: Delivery verified with carrier; dispute closed.
+  * `REFUND`: Order refunded to user wallet; dispute closed.
+
+Delivery Proof Image Viewer:
+- Staff can upload carrier delivery confirmation receipts (PNG/JPEG) up to 5MB.
+- Stored as Base64 in `proofImage` with mime-type.
+- Resellers and storefront buyers can inspect proof in a zoomable lightbox dialog.
+
+====================================================================================================
+10. WALLET, TOP-UP, PAYSTACK & "SEND & CLAIM" MOMO ENGINE
+====================================================================================================
+Double-Entry Wallet Architecture:
+- `user.balance`: Float representing Ghana Cedis.
+- Every balance mutation requires a matching `WalletTransaction` row (`TOPUP`, `DEBIT`, `REFUND`, `ADJUSTMENT`).
+
+Method 1: Instant Paystack Top-Up
+1. User enters top-up amount (bounded by `paystack_min_topup` and `paystack_max_topup`).
+2. Calls `POST /api/billing/paystack/initialize` -> Returns Paystack checkout URL.
+3. User completes payment via Mobile Money prompt or Card.
+4. Two-Way Verification:
+   - Server-to-server webhook `POST /api/billing/paystack/webhook` with HMAC SHA-512 signature.
+   - Client-side verification button `POST /api/billing/paystack/verify` for instant resolution.
+
+Method 2: Automated "Send & Claim" MoMo Top-Up (`src/lib/send-claim.ts`)
+1. Merchant MoMo SIM Configuration:
+   - Admin configures merchant SIM network, phone number (e.g. `0244000000`), and account name.
+2. Android SMS Forwarder Webhook (`POST /api/webhooks/momo/sms`):
+   - Android phone with merchant SIM runs an SMS forwarder app.
+   - Forwards SMS alerts with secret key authentication (`SMS_FORWARDER_SECRET`).
+   - Regex parser extracts: Transaction ID, amount, network, sender phone.
+   - Inserts `IncomingMomoTransaction` with status `AVAILABLE`.
+3. Reseller Claim:
+   - Reseller transfers money from their phone to merchant SIM.
+   - Reseller enters Transaction ID and claimed amount on `/dashboard/billing`.
+   - Rate limiting: Max 5 failed attempts per 15 minutes.
+4. Automatic Matching:
+   - Server finds matching `IncomingMomoTransaction`.
+   - Marks SMS as `CLAIMED`, creates `SendClaim` as `APPROVED`, credits user wallet,
+     records `WalletTransaction` of type `TOPUP`, and sends email confirmation.
+
+====================================================================================================
+11. MTN NUMBER VERIFICATION SUBSYSTEM
+====================================================================================================
+Purpose: Carrier compliance gate ensuring MTN numbers are registered before bundle fulfillment.
+
+Database Tables:
+- `AcceptedMtnNumber`: Master whitelist of verified MTN numbers. Unique on `normalizedNumber`.
+- `MtnVerificationRequest`: User submissions awaiting review.
+- `BlockedMtnNumber`: Unverified numbers attempted during orders when verification was disabled.
+
+User Features (`/dashboard/mtn-verification`):
+- Single number checker: Instant feedback if number is verified, pending, or unverified.
+- Bulk file upload (.txt / .csv): Upload up to 5,000 numbers at once for verification queue.
+- Request history table with real-time status pills.
+
+Admin Verification Center (`/admin/mtn-verification`):
+- Queue: Review pending user requests.
+- Actions: Mark numbers Verified (automatically inserts into `AcceptedMtnNumber`) or Rejected.
+- Whitelist Manager: Add number, bulk import CSV/TXT, download active whitelist to `.txt` file.
+
+Order Gate Enforcement:
+- If `mtn_number_verification_enabled === "true"`:
+  MTN orders are checked against `AcceptedMtnNumber`. If missing, order is blocked prior to wallet debit.
+
+====================================================================================================
+12. CONTROLLED RESELLER STOREFRONT & MARKETPLACE PLATFORM
+====================================================================================================
+Admin Access Control:
+- Admin enables storefront access per user (`Storefront.status`: `NOT_ENABLED`, `PENDING`, `ENABLED`, `SUSPENDED`).
+- Users apply on `/dashboard/storefront/apply` (Store Name, Contact Phone, WhatsApp Group Link).
+- Admin reviews and approves on `/admin/storefronts`.
+
+Storefront Configuration (`Storefront`):
+- Custom Slug: e.g. `loveagostore` -> live at `mycedinetstore.com/loveagostore`.
+- Branding: Store Name, Description, Logo, Banner, Announcement Notice.
+- Direct Support: WhatsApp number, WhatsApp group link, customizable floating chat bubble.
+- Open/Pause Switch (`isActive`): Reseller can pause store anytime.
+- Saved MoMo Payout SIM: Network, phone number, account name.
+
+Pricing & Markup Engine (`StorefrontProduct`):
+- Reseller selects master `DataPackage` bundles to sell.
+- Sets retail `sellingPrice` in exact integer pesewas (100 pesewas = GHS 1.00).
+- Server enforces admin markup bounds (`storefront_min_markup` & `storefront_max_markup`).
+- Bulk markup tool: Apply flat percentage (e.g. +20%) across all bundles in one click.
+
+Decoupled Commission Wallet (`StorefrontWallet`):
+- Stored in integer pesewas to eliminate rounding errors.
+- Balances: `pendingBalance` (orders in progress) and `balance` (withdrawable).
+- Ledger (`StorefrontWalletTransaction`): `COMMISSION`, `COMMISSION_RELEASE`, `COMMISSION_REVERSAL`, `WITHDRAWAL`.
+
+Commission Withdrawals (`StorefrontWithdrawal`):
+- Reseller requests MoMo payout from `/dashboard/storefront/wallet`.
+- System deducts platform fee (e.g. GHS 1.00 / 100 pesewas).
+- Debits `StorefrontWallet.balance` immediately.
+- Admin reviews on `/admin/storefronts/withdrawals`:
+  * Approves with MoMo transaction reference.
+  * Or rejects with note (instantly refunds gross amount to reseller's wallet).
+
+Public Customer Shopping Experience (`/store/[slug]`):
+- Carrier tabs: MTN, Telecel, AirtelTigo with official brand colors.
+- Filter chips: All, Popular, Light, Heavy.
+- Bottom sheet checkout with recipient phone and email inputs.
+- LocalStorage saves customer info for 1-click re-ordering.
+- Direct Paystack checkout: Customer pays reseller's retail price.
+- Upon payment confirmation:
+  * Creates `StorefrontOrder` with commission calculation (`sellingPrice - productCost`).
+  * Creates underlying single `Order` in MyCediNet and triggers provider dispatch.
+  * Credits reseller's `StorefrontWallet.pendingBalance`.
+- Customer Order Tracking (`/[slug]/track`): Search by phone or payment reference; file dispute within 24h.
+
+====================================================================================================
+13. DEVELOPER API PLATFORM (REST V1 & WEBHOOK ENGINE)
+====================================================================================================
+Developer Portal (`/dashboard/api`):
+- Application review workflow (`ApiApplication`).
+- Credential management (`ApiCredential`): Production (`ck_live_...`) and Sandbox (`ck_test_...`).
+- Keys hashed with SHA-256 before database storage.
+- In-App Interactive Playground: Test endpoints directly from the browser.
+- Webhook management (`ApiWebhook` & `ApiWebhookDelivery`): Configure endpoint, HMAC SHA-256 signatures,
+  test webhook ping, automated exponential retry queue.
+- Incoming request logs (`ApiRequestLog`) with latency, status codes, IP tracking.
+
+REST API Endpoints:
+- `POST /v1/numbers/verify`: Verify phone numbers against whitelist.
+- `GET  /v1/balance`: Query account balance in GHS.
+- `GET  /v1/status` & `GET /v1/networks/status`: Carrier latency and health.
+- `GET  /v1/networks` & `GET /v1/packages`: Active telecom networks and wholesale package rates.
+- `POST /v1/orders`: Create single data bundle order.
+  * Request: `{ "phoneNumber": "0241234567", "packageId": "pkg_id", "network": "MTN", "externalReference": "INV-01" }`
+  * Response: `{ "orderId": 1042, "code": "CF-OR-01042", "status": "PROCESSING", "amount": 25.00, ... }`
+- `POST /v1/orders/batch`: Create multiple single orders in one request.
+  * Accepts an array of recipient orders; creates each order as an individual `Order` record;
+    returns array of created order objects.
+- `GET  /v1/orders/:id`: Query order status by ID.
+- `GET  /v1/orders/reference/:reference`: Query order status by client external reference.
+- `GET  /v1/orders/status?orderIds=1,2,3`: Bulk query statuses.
+- `POST /v1/webhooks`: Manage webhook subscriptions.
+- `GET  /v1/openapi.json`: OpenAPI 3.1 specification.
+
+====================================================================================================
+14. MULTI-API TELECOM PROVIDER ROUTING & AUTOMATION ENGINE
+====================================================================================================
+Architecture (`src/lib/provider-apis/router.ts`):
+- Vendor-agnostic telecom dispatch abstraction.
+- Connects to external telecom fulfillment APIs without hardcoding to any single vendor.
+- Multi-Provider Settings in `SystemSetting`:
+  * `provider_routing_enabled`: Master switch ("true"/"false").
+  * `provider_routing_auto_dispatch`: If true, orders dispatch immediately upon placement.
+  * `provider_routing_default`: Default provider key (e.g. "PRIMARY_PROVIDER").
+  * Per-Network Provider Route Mapping:
+    - `provider_route_MTN`: Provider key assigned for MTN orders.
+    - `provider_route_TELECEL`: Provider key assigned for Telecel orders.
+    - `provider_route_AIRTELTIGO`: Provider key assigned for AT orders.
+
+Dispatch Lifecycle for Single Orders:
+1. When an `Order` is created (via Web, Storefront, or Developer API):
+   - Router checks if `provider_routing_enabled` and `provider_routing_auto_dispatch` are true.
+   - Looks up the assigned provider for `order.network`.
+2. Provider Client:
+   - Formats payload according to provider REST specification.
+   - Submits HTTP POST request to provider endpoint with API key and idempotency reference.
+   - Logs request payload, response payload, status code, and latency in `OrderApiLog`.
+3. Order State Update:
+   - If provider accepts: Updates `order.status = "PROCESSING"`, saves `providerReference`.
+   - If provider rejects: Updates `order.status = "FAILED"`, records sanitized failure note.
+
+Provider Webhook Receiver & Polling Sync:
+- Webhook Handler (`POST /api/webhooks/providers/telecom`):
+  * Upstream providers deliver status updates: `processing`, `delivered` (mapped to `SUCCESS`), `failed`.
+  * Verifies HMAC signature, finds matching order by `providerReference`, updates `order.status`.
+- Periodic Sync Cron (`GET /api/cron/provider-sync`):
+  * Background cron queries orders in `PROCESSING` status older than 5 minutes and queries
+    provider status API to ensure no orders remain stranded.
+
+====================================================================================================
+15. ADMIN CONTROL CENTER & OPERATIONS SUITE
+====================================================================================================
+Route: `/admin` (Restricted to `ADMIN` and `MANAGER`)
+
+1. Overview Dashboard (`/admin/page.tsx`):
+   - Real-time stat cards: Today's Data Volume (GB), Today's Revenue (GHS), Active Users,
+     Reseller Wallet Balances Sum, MoMo Incoming vs Claimed Today, Pending Withdrawals.
+   - Emergency Kill-Switch Banner.
+   - Auto-refresh toggle: 15s / 30s / 60s background polling.
+
+2. Single Orders Management (`/admin/orders`):
+   - Comprehensive single orders table with pagination, search, carrier filter, status filter, date range filter.
+   - Detail Modal: View full order timeline, provider references, failure reasons.
+   - Actions: Force status override, manual order refund, trigger provider re-dispatch.
+   - Direct Excel Export: Download filtered orders as an Excel file.
+
+3. Delivery Reports Resolution Desk (`/admin/delivery-reports`):
+   - Manage all "Not Received" dispute tickets.
+   - Actions: Start Investigation, Add Response, Upload Proof Screenshot, Mark Confirm Sent,
+     Resolve & Refund (credits user wallet), Resolve & Resend.
+
+4. MTN Verification Center (`/admin/mtn-verification`):
+   - Requests Queue: Review user verification requests; mark Verified or Rejected.
+   - Whitelist Manager: Search accepted numbers, add single number, import CSV/TXT, download whitelist .txt.
+   - Blocked Numbers: Audit unverified numbers attempted during orders.
+
+5. Storefronts & Commission Withdrawals (`/admin/storefronts`):
+   - Storefronts: Approve, suspend, or revoke reseller stores.
+   - Withdrawals (`/admin/storefronts/withdrawals`): Review MoMo commission payout requests.
+     Approve (with payout reference) or Reject (refunds reseller commission wallet).
+
+6. User Management (`/admin/users`):
+   - User table with role badges, status, balance, pricing profile, signup code used.
+   - Create User, Edit Role/Status, Reset Password, Manual Balance Credit/Debit.
+   - "Sales Sheet" Modal: View individual user's lifetime spend, volume, and order history.
+   - Signup Codes Manager (`/admin/users/signup-codes`): Generate single or bulk codes with prefix, max uses, expiry.
+
+7. Package Catalog & Pricing Profiles (`/admin/packages` & `/admin/pricing`):
+   - Packages: Add, edit, toggle active status, set sort order and wholesale rates.
+   - Pricing Profiles: Create custom price tier matrices per network/gigabyte.
+
+8. Mobile Money & Billing Oversight (`/admin/billing`):
+   - Live ledger of all SMS received by forwarder phone (`IncomingMomoTransaction`).
+   - Live ledger of reseller claims (`SendClaim`). Manual link/override.
+   - Update forwarder merchant SIM number and instructions.
+
+9. Multi-Provider Settings (`/admin/settings`):
+   - Configure telecom provider API keys, endpoints, and per-network route assignments.
+   - Provider request logs viewer (`/admin/order-api-logs`) with 1-click retry.
+
+10. Live Support Chat (`/admin/chat` & `SystemChatWidget`):
+    - Real-time in-app support chat between logged-in users and admins.
+    - Unread counters, auto-scroll, instant delivery via `support_chat_messages` table.
+
+11. Full Audit Log Explorer (`/admin/audit-logs`):
+    - Append-only log of every administrative mutation (actor, action, target, previous/new value, IP).
+
+====================================================================================================
+16. SYSTEM SETTINGS & DYNAMIC CONFIGURATION REGISTRY
+====================================================================================================
+Stored in `SystemSetting` table (`key` -> `value`):
+
+Kill-Switches & Maintenance:
+- `order_processing_halted` ("true"/"false"): Emergency stop for all order placement.
+- `maintenance_mode_enabled` ("true"/"false"): Puts frontend into maintenance mode.
+
+Onboarding & Registration:
+- `allow_user_registration` ("true"/"false"): Open or close public signup.
+- `default_register_role` ("USER"/"RESELLER"): Default role for new signups.
+- `signup_code_mode` ("DISABLED"/"OPTIONAL"/"REQUIRED"): Signup code enforcement.
+- `signup_fee_enabled` ("true"/"false"): Require registration fee payment via Paystack.
+- `signup_fee_amount` (e.g. "10.00"): Fee in GHS.
+
+Security & Auth:
+- `login_otp_enabled` ("true"/"false"): Require Brevo email OTP on login.
+- `secretary_login_without_otp` ("true"/"false"): Bypass OTP for secretary role.
+- `secretary_allowed_pages`: Comma-separated paths accessible to secretary.
+
+Multi-API Provider Routing:
+- `provider_routing_enabled` ("true"/"false"): Enable automated provider dispatch.
+- `provider_routing_auto_dispatch` ("true"/"false"): Immediate dispatch on order creation.
+- `provider_routing_default`: Default provider key.
+- `provider_route_MTN`, `provider_route_TELECEL`, `provider_route_AIRTELTIGO`: Per-network routes.
+
+MTN Verification Subsystem:
+- `mtn_number_verification_enabled` ("true"/"false"): Enforce number verification.
+- `mtn_verification_instructions`: Instructions displayed on verification page.
+
+Storefront Platform:
+- `storefront_feature_enabled` ("true"/"false"): Master switch for storefronts.
+- `storefront_apply_enabled` ("true"/"false"): Allow users to apply for storefronts.
+- `storefront_min_markup` (e.g. "5"): Minimum markup percentage.
+- `storefront_max_markup` (e.g. "100"): Maximum markup percentage.
+- `storefront_min_withdrawal` (e.g. "20.00"): Minimum MoMo payout in GHS.
+- `storefront_max_withdrawal` (e.g. "2000.00"): Maximum MoMo payout in GHS.
+
+Billing & Paystack:
+- `paystack_topup_enabled` ("true"/"false"): Enable wallet top-up via Paystack.
+- `paystack_min_topup` (e.g. "5.00"): Min top-up.
+- `paystack_max_topup` (e.g. "5000.00"): Max top-up.
+- `send_claim_enabled` ("true"/"false"): Enable Send & Claim MoMo top-up.
+- `default_momo_number`: Fallback merchant MoMo SIM number.
+
+Disputes & Support:
+- `reports_enabled` ("true"/"false"): Allow Not Received dispute reporting.
+- `report_not_received_window_hours` (default "24"): Dispute window in hours.
+- `site_name` (default "MyCediNet"): Platform brand name.
+- `site_announcement`: Marquee notice banner.
+- `support_whatsapp`, `support_phone`, `support_email`, `support_telegram`: Support contact info.
+
+====================================================================================================
+17. COMPLETE API ROUTE HANDLERS CATALOG
+====================================================================================================
+Authentication:
+- `POST /api/auth/register`: User signup (signup codes & registration fee redirect).
+- `POST /api/auth/login`: Email/password authentication & OTP dispatch.
+- `POST /api/auth/verify-otp`: Validates 6-digit email OTP ticket.
+- `POST /api/auth/resend-otp`: Dispatches new OTP code.
+- `POST /api/auth/logout`: Clears session cookie.
+- `GET  /api/auth/me`: Session claims check.
+- `GET  /api/auth/profile`: User profile & balance.
+- `POST /api/auth/profile`: Update name, phone, password.
+- `POST /api/auth/forgot-password`: Generates reset token & sends email.
+- `POST /api/auth/reset-password`: Sets new password with reset token.
+- `POST /api/auth/validate-code`: Validates signup code prior to form submission.
+- `GET  /api/auth/registration-settings`: Public registration open/closed & fee status.
+- `GET  /api/auth/register-fee/callback`: Paystack redirect for registration fee.
+
+Single Orders:
+- `POST /api/orders`: Submit single or multi-recipient single orders (balance debit, validation).
+- `GET  /api/orders`: Query user's single orders (filter by network, status, date range, search).
+- `GET  /api/orders/[id]`: Retrieve single order details and history timeline.
+- `POST /api/orders/parse-excel`: In-memory parsing of `.xlsx` / `.csv` spreadsheets.
+- `GET  /api/orders/template`: Download sample customer ordering template.
+- `GET  /api/orders/delivery-speed`: Query rolling delivery speed per network.
+
+Billing & Wallets:
+- `GET  /api/billing`: User wallet balance and recent ledger transactions.
+- `POST /api/billing/paystack/initialize`: Initialize Paystack top-up checkout.
+- `POST /api/billing/paystack/verify`: Verify and credit Paystack top-up.
+- `POST /api/billing/paystack/webhook`: Paystack server webhook.
+- `GET  /api/wallet/send-claim/settings`: Merchant MoMo instructions.
+- `POST /api/wallet/send-claim`: Submit MoMo transaction ID to claim funds.
+- `GET  /api/wallet/send-claim/history`: User's claim history.
+- `GET  /api/transactions`: Full pagination of user's wallet transactions.
+
+Disputes (Not Received):
+- `GET  /api/reports/not-received`: User's dispute tickets.
+- `POST /api/reports/not-received`: Submit Not Received dispute ticket.
+- `GET  /api/reports/not-received/[id]`: Dispute timeline & messages.
+- `GET  /api/reports/not-received/[id]/proof`: View delivery receipt screenshot.
+
+MTN Verification:
+- `GET  /api/mtn-verification`: User's verification requests.
+- `POST /api/mtn-verification`: Submit single number.
+- `POST /api/mtn-verification/check`: Check verification status.
+- `POST /api/mtn-verification/upload`: Bulk upload TXT/CSV for verification.
+
+Reseller Storefronts:
+- `POST /api/storefront/apply`: Submit storefront application.
+- `GET  /api/storefront/status`: Reseller storefront access status.
+- `GET  /api/storefront/settings`: Store branding and payout details.
+- `POST /api/storefront/settings`: Update store branding and WhatsApp link.
+- `POST /api/storefront/settings/payout`: Update saved MoMo payout SIM.
+- `GET  /api/storefront/products`: Reseller product catalog & pricing.
+- `POST /api/storefront/products`: Update bundle retail pricing.
+- `GET  /api/storefront/withdrawals`: Commission wallet ledger & payouts history.
+- `POST /api/storefront/withdrawals`: Request MoMo commission payout.
+
+Public Storefront APIs:
+- `POST /api/store/[slug]/checkout`: Customer initiates purchase on reseller store.
+- `GET  /api/store/paystack/callback`: Paystack settlement for customer store sales.
+- `GET  /api/store/[slug]/track`: Customer order tracking.
+- `POST /api/store/[slug]/track/report`: Customer files dispute on storefront.
+- `GET  /api/store/[slug]/track/report/[reportId]`: Customer views dispute status.
+- `GET  /api/store/[slug]/track/report/[reportId]/proof`: Customer views delivery proof.
+
+Developer Platform (REST V1):
+- `POST /v1/numbers/verify`: Verify phone numbers.
+- `GET  /v1/balance`: Query account balance in GHS.
+- `GET  /v1/status`: Health check.
+- `GET  /v1/networks`: List active networks.
+- `GET  /v1/networks/status`: Carrier latency and operational status.
+- `GET  /v1/packages`: Active packages and wholesale rates.
+- `POST /v1/orders`: Create single data bundle order.
+- `POST /v1/orders/batch`: Create multiple single orders in one request.
+- `GET  /v1/orders/:id`: Query order status by ID.
+- `GET  /v1/orders/reference/:reference`: Query order status by external reference.
+- `GET  /v1/orders/status`: Bulk query statuses by array of IDs.
+- `POST /v1/webhooks`: Manage webhook configuration.
+- `GET  /v1/openapi.json`: OpenAPI 3.1 specification.
+
+Admin Operations (`/api/admin/...`):
+- `GET  /api/admin/orders`: Admin single orders query.
+- `PATCH /api/admin/orders`: Single order status override, refund, or re-dispatch.
+- `GET  /api/admin/order-api-logs`: Query provider HTTP logs.
+- `POST /api/admin/order-api-logs/retry`: Re-dispatch logged request.
+- `GET  /api/admin/delivery-reports`: List dispute tickets.
+- `PATCH /api/admin/delivery-reports`: Update dispute status, refund, resend.
+- `POST /api/admin/delivery-reports/[id]/proof`: Upload delivery confirmation image.
+- `GET  /api/admin/mtn-verification`: Verification requests queue.
+- `PATCH /api/admin/mtn-verification/requests`: Mark requests verified/rejected.
+- `GET  /api/admin/mtn-verification/accepted`: List accepted whitelist numbers.
+- `POST /api/admin/mtn-verification/accepted`: Add accepted number.
+- `DELETE /api/admin/mtn-verification/accepted`: Bulk delete accepted numbers.
+- `POST /api/admin/mtn-verification/accepted/import`: Bulk import whitelist from CSV/TXT.
+- `GET  /api/admin/mtn-verification/accepted/export`: Download master whitelist .txt.
+- `GET  /api/admin/storefronts`: List all reseller storefronts.
+- `PATCH /api/admin/storefronts`: Approve, suspend, or revoke storefront.
+- `GET  /api/admin/storefront-withdrawals`: List commission withdrawal requests.
+- `PATCH /api/admin/storefront-withdrawals`: Approve or reject MoMo payout.
+- `GET  /api/admin/users`: List users with role, status, balance filters.
+- `POST /api/admin/users`: Manually create user.
+- `PATCH /api/admin/users/[id]`: Update user role, status, balance, password.
+- `POST /api/admin/users/[id]/freeze`: Freeze user account.
+- `POST /api/admin/users/[id]/activate`: Unfreeze user account.
+- `GET  /api/admin/users/[id]/sales`: Download user sales audit report.
+- `GET  /api/admin/signup-codes`: List signup codes and usages.
+- `POST /api/admin/signup-codes`: Create single or bulk signup codes.
+- `PATCH /api/admin/signup-codes/[id]`: Update or disable signup code.
+- `GET  /api/admin/packages`: List data packages.
+- `POST /api/admin/packages`: Create data package.
+- `PATCH /api/admin/packages/[id]`: Update data package.
+- `PATCH /api/admin/packages/[id]/toggle`: Toggle package active switch.
+- `GET  /api/admin/pricing`: List pricing profiles and tier matrices.
+- `POST /api/admin/pricing`: Create pricing profile.
+- `PATCH /api/admin/pricing/[id]`: Update pricing profile tiers.
+- `GET  /api/admin/wallets`: User wallet balances ledger.
+- `POST /api/admin/wallet/manual-credit`: Credit user balance with audit reason.
+- `POST /api/admin/wallet/manual-debit`: Debit user balance with audit reason.
+- `GET  /api/admin/momo-transactions`: List incoming SMS from forwarder phone.
+- `GET  /api/admin/claims`: List Send & Claim user requests.
+- `POST /api/admin/claims/[id]/approve`: Approve MoMo claim.
+- `POST /api/admin/claims/[id]/reject`: Reject MoMo claim.
+- `GET  /api/admin/api/applications`: List developer API applications.
+- `POST /api/admin/api/applications/[id]/review`: Approve/reject developer app.
+- `GET  /api/admin/settings`: Retrieve system settings key-values.
+- `PATCH /api/admin/settings`: Update system settings key-values.
+- `GET  /api/admin/audit-logs`: Query administrative audit log.
+- `GET  /api/admin/chat`: Admin support chat message inbox.
+- `POST /api/admin/chat`: Admin reply to user support thread.
+
+Webhooks & Background Jobs:
+- `POST /api/webhooks/momo/sms`: Android SMS forwarder listener.
+- `POST /api/webhooks/providers/telecom`: Upstream telecom provider status webhook.
+- `GET  /api/cron/provider-sync`: Periodic status synchronizer for processing orders.
+- `GET  /api/cron/webhooks`: Developer webhook retry queue worker.
+
+====================================================================================================
+18. FRONTEND COMPONENT ARCHITECTURE & UI DESIGN SYSTEM
+====================================================================================================
+Design System:
+- Dark Obsidian Aesthetic (`bg-[#060b13]`, `bg-slate-950`).
+- Glassmorphism Cards: `backdrop-blur-xl bg-slate-900/80 border border-white/10`.
+- Glowing Accent Highlights: Emerald (`emerald-400`), Cyan (`cyan-400`), Amber (`amber-400`).
+- Carrier Brand Accents: MTN (`#FFCB05`), Telecel (`#E4002B`), AirtelTigo (`#00A3E0`).
+
+Core Components:
+- `AppShell` (`src/components/app-shell.tsx`): Main dashboard wrapper with collapsible sidebar,
+  live wallet balance chip, notification bell, theme toggle, and user avatar.
+- `AppNav` (`src/components/app-nav.tsx`): Navigation items (Buy Now, Send Orders, Orders,
+  Packages, Billing, Not Received, MTN Verification, Storefront, Developer API, Admin Center).
+- `OrderDateFilter` (`src/components/orders/order-date-filter.tsx`): Presets (Today, Yesterday,
+  Last 7 Days, Last 30 Days, All Time, Custom Range).
+- `NotReceivedReportDetailDialog` (`src/components/orders/not-received-report-dialog.tsx`):
+  Dispute timeline modal with delivery proof receipt image viewer.
+- `SystemChatWidget` (`src/components/chat/system-chat-widget.tsx`):
+  Floating real-time 2-way chat widget connecting users to admins.
+
+====================================================================================================
+19. STEP-BY-STEP IMPLEMENTATION & CLONING BLUEPRINT
+====================================================================================================
+Follow this exact 12-phase sequence to build the streamlined single-order, multi-provider application:
+
+Phase 1: Database & Foundation
+1. Initialize Next.js 15 project with TypeScript and Tailwind CSS v4.
+2. Install packages:
+   `npm install @prisma/client bcryptjs jose exceljs lucide-react next-themes pdf-lib zod clsx tailwind-merge recharts @tanstack/react-table`
+   `npm install -D prisma @tailwindcss/postcss tsx @types/bcryptjs @types/node @types/react`
+3. Configure `prisma/schema.prisma` with the streamlined models defined in Section 4.
+4. Run `npx prisma db push`.
+5. Create `prisma/seed.ts` with initial Admin credentials, default pricing profile, and data packages.
+
+Phase 2: Authentication & Multi-Domain Middleware
+1. Implement JWT session token utilities using `jose` (`src/lib/session.ts`).
+2. Build session cookies and password hashing in `src/lib/auth.ts`.
+3. Implement `src/middleware.ts` for multi-domain routing (`mycedinetstore.com` vs `mycedinet.com`),
+   role protection (`/admin` vs `/dashboard`), and session validation.
+4. Build auth screens: `/login`, `/register`, `/forgot-password`, `/reset-password`.
+5. Integrate Brevo email OTP (`src/lib/email.ts` and `src/lib/otp.ts`).
+6. Build Signup Codes system (`src/lib/signup-codes.ts`).
+
+Phase 3: Core Telecom & Packages Engine
+1. Implement phone number utilities (`src/lib/phone-utils.ts`):
+   Normalization to 10 digits starting with 0, prefix-to-carrier mapping.
+2. Build `DataPackage` and `PricingProfile` resolution logic in `src/lib/orders.ts`.
+3. Implement `/dashboard/packages` catalog viewer.
+
+Phase 4: Buy Now & Multi-Recipient Single-Order Placement
+1. Build single-order quick purchase screen (`/dashboard/buy-now`).
+2. Build bulk text parser (`src/lib/order-parse.ts`) and Excel/CSV parser using ExcelJS.
+3. Build `/dashboard/send` with ported number modal, MTN verification check, insufficient balance
+   modal, and browser draft autosave.
+4. Implement `POST /api/orders` transaction: debits user balance and inserts individual `Order` records.
+
+Phase 5: Single Orders Management & Direct Excel Export
+1. Build `/dashboard/orders` single orders table with carrier filter, status filter, date filter, search.
+2. Implement allowed status transition matrix (`ALLOWED_ORDER_TRANSITIONS`).
+3. Build customer-facing sanitization utilities (`sanitizeCustomerRefundNote` & `sanitizeCustomerFacingText`).
+4. Implement direct Excel export of filtered order records.
+
+Phase 6: Not Received Dispute Investigation System
+1. Implement `/api/reports/not-received` with 24-hour enforcement window.
+2. Build dispute timeline (`DeliveryReportEvent`) and Base64 proof image storage.
+3. Build customer dispute dialog and `/admin/delivery-reports` staff resolution desk.
+
+Phase 7: Wallet, Paystack & Send & Claim MoMo Top-Up
+1. Implement Paystack checkout initialization, verification, and HMAC webhook handler.
+2. Implement MoMo SMS regex parser (`src/lib/momo-parser.ts`) for MTN, Telecel, and AT alerts.
+3. Build Android SMS forwarder webhook (`/api/webhooks/momo/sms`) with secret key authentication.
+4. Build Send & Claim reconciliation engine with anti-bruteforce throttling (`src/lib/send-claim.ts`).
+5. Build `/dashboard/billing` with direct Paystack top-up and Send & Claim tabs.
+
+Phase 8: MTN Number Verification Subsystem
+1. Implement `AcceptedMtnNumber` whitelist and validation interceptor (`src/lib/mtn-verification.ts`).
+2. Build user single checker and bulk file upload (`/dashboard/mtn-verification`).
+3. Build admin verification desk (`/admin/mtn-verification`) with requests queue and whitelist import/export.
+
+Phase 9: Controlled Reseller Storefront Platform
+1. Implement storefront middleware rewrite rules in `src/middleware.ts`.
+2. Implement admin approval workflow (`/dashboard/storefront/apply` and `/admin/storefronts`).
+3. Build reseller pricing editor with admin markup bounds enforcement (`/dashboard/storefront/products`).
+4. Build decoupled commission wallet ledger (`StorefrontWallet` & `StorefrontWalletTransaction`).
+5. Build MoMo commission withdrawal workflow (`/dashboard/storefront/wallet` and `/admin/storefronts/withdrawals`).
+6. Build public customer store (`/store/[slug]`) with carrier tabs, bundle filters, bottom sheet checkout,
+   Paystack direct payment, underlying single order creation, and public order tracking (`/[slug]/track`).
+
+Phase 10: Developer API Platform (REST V1)
+1. Build developer application review and approval workflow.
+2. Implement SHA-256 API key hashing and credential manager (`src/lib/developer-api.ts`).
+3. Implement `/v1/...` REST endpoints (verify, balance, networks, packages, orders, status).
+4. Implement webhook dispatch engine with HMAC SHA-256 signatures and exponential backoff.
+5. Build Developer Dashboard (`/dashboard/api`) with interactive docs, live playground, and logs.
+
+Phase 11: Multi-API Telecom Provider Routing Engine
+1. Implement provider routing configuration in `src/lib/provider-apis/router.ts`.
+2. Build provider dispatch adapter, per-network routing mapping, and `OrderApiLog` logger.
+3. Build provider webhook receiver and background sync cron (`/api/cron/provider-sync`).
+
+Phase 12: Admin Control Center, Live Support Chat & Audit Logs
+1. Build `/admin` dashboard with live statistics, network volume cards, and auto-refresh.
+2. Build user management, signup codes generator, pricing profiles, and manual wallet adjustments.
+3. Build centralized system settings editor (`/admin/settings`).
+4. Build live support chat widget (`src/components/chat/system-chat-widget.tsx` and `src/lib/chat.ts`).
+5. Wire up append-only `AuditLog` across all administrative actions.
+
+====================================================================================================
+END OF MYCEDINET CLONE SPECIFICATION MASTER BLUEPRINT
+====================================================================================================

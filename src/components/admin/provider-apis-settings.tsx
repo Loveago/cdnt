@@ -34,6 +34,7 @@ import {
   DEFAULT_CLICKYFIED_SANDBOX_URL,
   DEFAULT_CLICKYFIED_PROD_URL,
 } from "@/lib/provider-apis/clickyfied";
+import { DEFAULT_ACKMORRE_BASE_URL } from "@/lib/provider-apis/ackmorre";
 import { SUPPORTED_ROUTING_NETWORKS } from "@/lib/provider-apis/router";
 
 interface Props {
@@ -47,8 +48,21 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
   const { toast } = useToast();
 
   const [showClickyfiedKey, setShowClickyfiedKey] = React.useState(false);
+  const [showAckmorreKey, setShowAckmorreKey] = React.useState(false);
+  const [showAckmorreSecret, setShowAckmorreSecret] = React.useState(false);
   const [syncing, setSyncing] = React.useState(false);
   const [testingClickyfied, setTestingClickyfied] = React.useState(false);
+  const [testingAckmorre, setTestingAckmorre] = React.useState(false);
+  const [testingAckmorreOrder, setTestingAckmorreOrder] = React.useState(false);
+  const [ackmorreAccount, setAckmorreAccount] = React.useState<{
+    name?: string;
+    email?: string;
+    status?: string;
+    balance?: number;
+    currency?: string;
+    apiKeyHint?: string;
+    webhookStatus?: boolean;
+  } | null>(null);
   const [batchStatus, setBatchStatus] = React.useState<{
     batchEnabled: boolean;
     pendingCount: number;
@@ -164,6 +178,8 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
     settings.app_base_url || (typeof window !== "undefined" ? window.location.origin : "");
   const clickyfiedWebhookUrl = `${appBaseUrl}/api/webhooks/providers/clickyfied`;
   const clickyfiedCallbackUrl = clickyfiedWebhookUrl;
+  const ackmorreWebhookUrl = `${appBaseUrl}/api/webhooks/providers/ackmorre`;
+  const isAckmorreEnabled = settings.ackmorre_enabled === "true";
 
   const copyToClipboard = (text: string, label: string) => {
     navigator.clipboard.writeText(text);
@@ -189,6 +205,21 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
       clickyfied_batch_timer_minutes: s.clickyfied_batch_timer_minutes || "15",
     }));
     toast("Preset applied: All Networks → Clickyfied (MTN, Telecel, AirtelTigo)", "success");
+  };
+
+  const applyAckmorreAllPreset = () => {
+    setSettings((s) => ({
+      ...s,
+      provider_routing_enabled: "true",
+      provider_routing_default: "ACKMORRE",
+      provider_route_MTN: "ACKMORRE",
+      provider_route_MTN_XPRESS: "ACKMORRE",
+      provider_route_TELECEL: "ACKMORRE",
+      provider_route_AIRTELTIGO_ISHARE: "ACKMORRE",
+      provider_route_AIRTELTIGO_BIGTIME: "ACKMORRE",
+      ackmorre_enabled: "true",
+    }));
+    toast("Preset applied: All Networks → Ackmorre API v2", "success");
   };
 
   const applyManualAllPreset = () => {
@@ -245,6 +276,83 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
       toast(`Clickyfied error: ${err.message}`, "error");
     } finally {
       setTestingClickyfied(false);
+    }
+  };
+
+  const testAckmorre = async () => {
+    setTestingAckmorre(true);
+    setTestResult(null);
+    try {
+      const res = await fetch("/api/admin/provider-apis/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "test_ackmorre" }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Ackmorre connection failed");
+      const acc = json.data?.account;
+      const bal = json.data?.balance;
+      const curr = json.data?.currency || "GHS";
+      setAckmorreAccount({
+        name: acc?.name,
+        email: acc?.email,
+        status: acc?.status,
+        balance: bal,
+        currency: curr,
+        apiKeyHint: json.data?.apiKey?.hint,
+        webhookStatus: json.data?.webhook?.active,
+      });
+      setTestResult({
+        provider: "Ackmorre",
+        success: true,
+        message: `Connected successfully! Balance: ${curr} ${bal} (${acc?.name || "Active Account"})`,
+      });
+      toast("Ackmorre connection verified!", "success");
+    } catch (err: any) {
+      setTestResult({
+        provider: "Ackmorre",
+        success: false,
+        message: err.message,
+      });
+      toast(`Ackmorre error: ${err.message}`, "error");
+    } finally {
+      setTestingAckmorre(false);
+    }
+  };
+
+  const testAckmorreOrder = async () => {
+    if (!confirm("Run a safe test order validation on Ackmorre (dry_run: true - wallet will NOT be charged)?")) return;
+    setTestingAckmorreOrder(true);
+    try {
+      const res = await fetch("/api/admin/provider-apis/test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "test_order",
+          provider: "ACKMORRE",
+          network: "MTN",
+          recipient: "0241234567",
+          gbAmount: 1,
+          dryRun: true,
+        }),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Ackmorre test order failed");
+      toast(`Ackmorre dry run passed! Bundle #${json.bundle?.id} (${json.bundle?.label}) verified.`, "success");
+      setTestResult({
+        provider: "Ackmorre",
+        success: true,
+        message: `Dry run order verified! Bundle: ${json.bundle?.label} (${json.bundle?.price} GHS), Balance: ${json.currency} ${json.balance}`,
+      });
+    } catch (err: any) {
+      toast(`Ackmorre test order error: ${err.message}`, "error");
+      setTestResult({
+        provider: "Ackmorre",
+        success: false,
+        message: err.message,
+      });
+    } finally {
+      setTestingAckmorreOrder(false);
     }
   };
 
@@ -360,6 +468,15 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
                 className="text-xs text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800 hover:bg-indigo-50 font-semibold"
               >
                 <Zap className="h-3.5 w-3.5 mr-1 text-indigo-600" /> Route All → Clickyfied
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={applyAckmorreAllPreset}
+                className="text-xs text-emerald-600 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 hover:bg-emerald-50 font-semibold"
+              >
+                <Zap className="h-3.5 w-3.5 mr-1 text-emerald-600" /> Route All → Ackmorre
               </Button>
               <Button
                 type="button"
@@ -554,7 +671,7 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
                 Network-to-Provider Routing Matrix
               </h3>
               <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                Assign which provider delivers each network. Currently serving all networks via Clickyfied.
+                Assign which provider delivers each network. Switch between Clickyfied and Ackmorre API v2 with one click.
               </p>
             </div>
           </div>
@@ -569,6 +686,7 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
               <tr className="border-b border-slate-100 dark:border-slate-800 text-slate-400 uppercase tracking-wider">
                 <th className="py-2.5 px-3 font-medium">Network / Bundle Type</th>
                 <th className="py-2.5 px-3 font-medium text-center">Clickyfied API</th>
+                <th className="py-2.5 px-3 font-medium text-center">Ackmorre API v2</th>
                 <th className="py-2.5 px-3 font-medium text-center">Manual File Export</th>
                 <th className="py-2.5 px-3 font-medium text-right">Active Mode</th>
               </tr>
@@ -613,6 +731,24 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
                         <input
                           type="radio"
                           name={settingKey}
+                          value="ACKMORRE"
+                          checked={currentVal === "ACKMORRE"}
+                          onChange={() =>
+                            setSettings((s) => ({ ...s, [settingKey]: "ACKMORRE" }))
+                          }
+                          className="text-emerald-600 focus:ring-emerald-500"
+                        />
+                        <span className="text-emerald-700 dark:text-emerald-400 font-medium text-xs">
+                          Ackmorre
+                        </span>
+                      </label>
+                    </td>
+
+                    <td className="py-3 px-3 text-center">
+                      <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                        <input
+                          type="radio"
+                          name={settingKey}
                           value="MANUAL"
                           checked={currentVal === "MANUAL"}
                           onChange={() => setSettings((s) => ({ ...s, [settingKey]: "MANUAL" }))}
@@ -631,6 +767,10 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
                           📁 Manual Export
                         </span>
+                      ) : currentVal === "ACKMORRE" ? (
+                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300">
+                          ⚡ Ackmorre
+                        </span>
                       ) : (
                         <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-medium bg-indigo-100 text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-300">
                           🚀 Clickyfied
@@ -647,14 +787,215 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
         <div className="mt-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-100 dark:border-slate-800 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
           <div className="flex items-center gap-2">
             <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-            <span>Serving all active networks (MTN, Telecel, AirtelTigo) through <strong>Clickyfied</strong>.</span>
+            <span>Switch effortlessly between <strong>Clickyfied</strong> and <strong>Ackmorre API v2</strong> per network.</span>
           </div>
-          <span className="text-[11px] text-slate-400 italic">Extensible for future provider APIs</span>
+          <span className="text-[11px] text-slate-400 italic">Multi-provider routing active</span>
         </div>
       </div>
 
 
-{/* 3. Clickyfied Configuration */}
+      {/* 3. Ackmorre API v2 Configuration */}
+      <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2.5">
+            <div className="h-8 w-8 rounded-lg bg-emerald-50 dark:bg-emerald-950/60 flex items-center justify-center text-emerald-600 font-bold">
+              ⚡
+            </div>
+            <div>
+              <div className="flex items-center gap-2">
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-white">
+                  Ackmorre API v2 Configuration
+                </h3>
+                <span
+                  className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-semibold ${
+                    isAckmorreEnabled
+                      ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"
+                      : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400"
+                  }`}
+                >
+                  {isAckmorreEnabled ? "Active Provider" : "Disabled"}
+                </span>
+              </div>
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                Official Ackmorre API v2: single & bulk orders (up to 100/req), live wallet balance, and instant webhooks.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={testAckmorre}
+              disabled={testingAckmorre}
+              className="text-xs border-emerald-300 text-emerald-700 dark:border-emerald-700 dark:text-emerald-300 hover:bg-emerald-50"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 mr-1 ${testingAckmorre ? "animate-spin" : ""}`} />
+              Check Balance & Status
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={testAckmorreOrder}
+              disabled={testingAckmorreOrder}
+              className="text-xs border-slate-200 text-slate-700 dark:border-slate-700 dark:text-slate-300 hover:bg-slate-50"
+            >
+              <CheckCircle2 className={`h-3.5 w-3.5 mr-1 ${testingAckmorreOrder ? "animate-spin" : ""}`} />
+              Test Dry Run Order
+            </Button>
+          </div>
+        </div>
+
+        {/* Live Balance / Account Banner if loaded */}
+        {ackmorreAccount && (
+          <div className="p-3 rounded-xl bg-emerald-50/70 border border-emerald-200 dark:bg-emerald-950/40 dark:border-emerald-900/60 flex flex-wrap items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-3">
+              <span className="font-semibold text-emerald-900 dark:text-emerald-200">
+                {ackmorreAccount.name} {ackmorreAccount.email ? `(${ackmorreAccount.email})` : ""}
+              </span>
+              <span className="text-emerald-700 dark:text-emerald-400">
+                Status: <strong className="capitalize">{ackmorreAccount.status || "active"}</strong>
+              </span>
+              {ackmorreAccount.apiKeyHint && (
+                <span className="text-emerald-600 dark:text-emerald-400 font-mono text-[11px]">
+                  Key: {ackmorreAccount.apiKeyHint}
+                </span>
+              )}
+            </div>
+            <div className="text-sm font-bold text-emerald-700 dark:text-emerald-300">
+              Live Wallet: {ackmorreAccount.currency || "GHS"} {Number(ackmorreAccount.balance ?? 0).toFixed(2)}
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+          {/* Enabled Switch */}
+          <div className="space-y-1.5 sm:col-span-2">
+            <div className="flex items-center justify-between p-3 rounded-xl border border-slate-200/80 bg-slate-50/50 dark:border-slate-800 dark:bg-slate-900/40">
+              <div className="space-y-0.5">
+                <Label className="text-xs font-semibold text-slate-900 dark:text-white">
+                  Enable Ackmorre API
+                </Label>
+                <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                  When enabled, networks routed to Ackmorre in the matrix above will automatically dispatch to Ackmorre.
+                </p>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={isAckmorreEnabled}
+                  onChange={(e) =>
+                    setSettings((s) => ({
+                      ...s,
+                      ackmorre_enabled: e.target.checked ? "true" : "false",
+                    }))
+                  }
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-slate-600 peer-checked:bg-emerald-600" />
+              </label>
+            </div>
+          </div>
+
+          {/* Base URL */}
+          <div className="space-y-1.5">
+            <Label>Ackmorre Base URL</Label>
+            <Input
+              type="text"
+              value={settings.ackmorre_base_url ?? DEFAULT_ACKMORRE_BASE_URL}
+              onChange={(e) =>
+                setSettings((s) => ({ ...s, ackmorre_base_url: e.target.value }))
+              }
+              placeholder={DEFAULT_ACKMORRE_BASE_URL}
+            />
+            <p className="text-[11px] text-slate-400">
+              Default: <span className="font-mono">{DEFAULT_ACKMORRE_BASE_URL}</span>
+            </p>
+          </div>
+
+          {/* API Key */}
+          <div className="space-y-1.5">
+            <Label>Ackmorre API Key</Label>
+            <div className="relative">
+              <Input
+                type={showAckmorreKey ? "text" : "password"}
+                value={settings.ackmorre_api_key ?? ""}
+                onChange={(e) =>
+                  setSettings((s) => ({ ...s, ackmorre_api_key: e.target.value }))
+                }
+                placeholder="Paste your Ackmorre API Key (ak_...)"
+                className="pr-10 font-mono text-xs"
+              />
+              <button
+                type="button"
+                onClick={() => setShowAckmorreKey(!showAckmorreKey)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                {showAckmorreKey ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-400">
+              Found under API Access in your Ackmorre dashboard. Sent in <span className="font-mono">X-API-Key</span> header.
+            </p>
+          </div>
+
+          {/* Webhook Secret */}
+          <div className="space-y-1.5">
+            <Label>Ackmorre Webhook Secret (whsec_...)</Label>
+            <div className="relative">
+              <Input
+                type={showAckmorreSecret ? "text" : "password"}
+                value={settings.ackmorre_webhook_secret ?? ""}
+                onChange={(e) =>
+                  setSettings((s) => ({ ...s, ackmorre_webhook_secret: e.target.value }))
+                }
+                placeholder="whsec_..."
+                className="pr-10 font-mono text-xs"
+              />
+              <button
+                type="button"
+                onClick={() => setShowAckmorreSecret(!showAckmorreSecret)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              >
+                {showAckmorreSecret ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            <p className="text-[11px] text-slate-400">
+              Used to verify HMAC-SHA256 signatures on incoming <span className="font-mono">orders.finished</span> webhooks.
+            </p>
+          </div>
+
+          {/* Webhook Endpoint Display */}
+          <div className="space-y-1.5">
+            <Label>Ackmorre Webhook URL</Label>
+            <div className="flex gap-2">
+              <Input
+                type="text"
+                readOnly
+                value={ackmorreWebhookUrl}
+                className="font-mono text-xs bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300"
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => copyToClipboard(ackmorreWebhookUrl, "Ackmorre Webhook URL")}
+                className="shrink-0"
+              >
+                <Copy className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+            <p className="text-[11px] text-slate-400">
+              Save this URL in your Ackmorre Dashboard under API Access → Webhook URL.
+            </p>
+          </div>
+        </div>
+      </div>
+
+
+      {/* 4. Clickyfied Configuration */}
       <div className="rounded-2xl border border-slate-200/80 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 space-y-4">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2.5">

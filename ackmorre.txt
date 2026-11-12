@@ -1,0 +1,346 @@
+API INTEGRATION GUIDE · VERSION 2
+ACKMORRE API v2
+How to sell data bundles and AFA registrations from your own website or app: every endpoint with real requests and replies, webhooks, errors and safe retries.
+
+BASE URL: https://console.ackmorre.com/api/v2
+AUTHENTICATION: X-API-Key header
+FORMAT: JSON in, JSON out
+BULK ORDERS: Up to 100 per request
+CURRENCY: GHS (cedis)
+GUIDE DATE: October 2026
+
+1 Getting started
+Get your API key from API Access in your ACKMORRE dashboard (your account needs API access approved).
+Send it in the X-API-Key header on every request. Requests and replies are JSON.
+
+X-API-Key: YOUR_API_KEY
+Content-Type: application/json
+
+Every reply has the same shape. Check ok first; on errors use error.code. Keep meta.request_id — quote it when you contact support.
+
+SUCCESS 200
+{
+  "ok": true,
+  "data": { ... },
+  "meta": {
+    "request_id": "req_112b2ba07d1ab13af712",
+    "api_version": "2"
+  }
+}
+
+ERROR 402
+{
+  "ok": false,
+  "error": {
+    "code": "INSUFFICIENT_BALANCE",
+    "message": "Not enough balance for this order. Nothing was charged.",
+    "required": 9,
+    "available": 1
+  },
+  "meta": {
+    "request_id": "req_02a0f778d7541a46bcff",
+    "api_version": "2"
+  }
+}
+
+Keep your key on your server only. Prices always come from your account — you never send a price. Your wallet is charged when an order is accepted. Optional: lock your key to your server IP under API Access -> Allowed IP addresses.
+
+2 Endpoints at a glance
+Base URL: https://console.ackmorre.com/api/v2
+METHOD | PATH           | WHAT IT DOES
+GET    | /me            | Account, balance and webhook status
+GET    | /bundles       | Bundles and your prices
+POST   | /orders        | Buy one bundle
+POST   | /orders/bulk   | Buy up to 100 bundles
+GET    | /orders        | List your orders
+GET    | /orders/{ref}  | One order (our reference or yours)
+POST   | /afa           | Submit an AFA registration
+GET    | /afa           | List AFA registrations
+GET    | /afa/{ref}     | One AFA registration
+
+3 Balance and bundles
+GET /me
+Account and balance. A good first call to test your key.
+curl -X GET "https://console.ackmorre.com/api/v2/me" \
+  -H "X-API-Key: YOUR_API_KEY"
+
+RESPONSE 200
+{
+  "ok": true,
+  "data": {
+    "account": {
+      "name": "Kofi Traders",
+      "email": "kofi@example.com",
+      "status": "active"
+    },
+    "balance": 250,
+    "currency": "GHS",
+    "api_key": {
+      "hint": "ak_3f9...a1c2",
+      "last_used_at": "2026-10-09T16:55:27+00:00"
+    },
+    "allowed_ips": [],
+    "your_ip": "41.66.12.34"
+  },
+  "webhook": {
+    "url": "https://your-site.com/webhooks/ackmorre",
+    "active": true,
+    "secret_set": true
+  },
+  "afa_price": 12,
+  "limits": {
+    "bulk_max_orders": 100,
+    "page_size_max": 100,
+    "max_body_bytes": 262144
+  },
+  "meta": {
+    "request_id": "req_112b2ba07d1ab13af712",
+    "api_version": "2"
+  }
+}
+
+GET /bundles
+Bundles at your prices.
+Query parameter: network string (Only one network, e.g. mtn. Leave out for all).
+Use the id as bundle_id when ordering. price is what you pay, in Ghana cedis.
+curl -X GET "https://console.ackmorre.com/api/v2/bundles?network=mtn" \
+  -H "X-API-Key: YOUR_API_KEY"
+
+RESPONSE 200
+{
+  "ok": true,
+  "data": [
+    {
+      "id": 1,
+      "label": "MTN 1GB",
+      "capacity_gb": 1,
+      "network": {
+        "code": "mtn",
+        "name": "MTN"
+      },
+      "price": 4.5,
+      "currency": "GHS"
+    }
+  ],
+  "meta": {
+    "request_id": "req_5535cf4509f38b04e5d8",
+    "api_version": "2"
+  }
+}
+
+4 Place an order
+POST /orders
+Buy one bundle
+FIELDS:
+- bundle_id (integer, Required): An id from GET /bundles.
+- recipient (string, Required): Ghana number, 10 digits, e.g. 0241234567.
+- idempotency_key (string): Your unique ID for this order. Sending it again never charges twice.
+- client_reference (string): Your own reference (up to 64 letters, numbers, _ -). Unique on your account.
+- webhook_url (string): Send this order's status updates to this https:// address instead of your saved webhook URL.
+- dry_run (boolean): true = check price and balance only. Nothing is charged.
+
+curl -X POST "https://console.ackmorre.com/api/v2/orders" \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"bundle_id": 1, "recipient": "0241234567", "client_reference": "INV-1001", "idempotency_key": "INV-1001", "webhook_url": "https://your-site.com/webhooks/ackmorre"}'
+
+RESPONSE 201
+{
+  "ok": true,
+  "data": {
+    "order": {
+      "reference": "API_D4194E8259AF",
+      "client_reference": "INV-1001",
+      "type": "data",
+      "status": "accepted",
+      "recipient": "0241234567",
+      "network": {
+        "code": "mtn",
+        "name": "MTN"
+      },
+      "bundle": {
+        "id": 1,
+        "label": "MTN 1GB",
+        "capacity_gb": 1
+      },
+      "price": 4.5,
+      "currency": "GHS",
+      "source": "api",
+      "webhook_url": "https://your-site.com/webhooks/ackmorre",
+      "failure_reason": null,
+      "created_at": "2026-10-09T16:55:27+00:00",
+      "timeline": {
+        "accepted_at": "2026-10-09T16:55:27+00:00",
+        "placed_at": null,
+        "processing_at": null,
+        "delivered_at": null,
+        "failed_at": null,
+        "refunded_at": null
+      }
+    },
+    "balance": 245.5,
+    "currency": "GHS"
+  },
+  "meta": {
+    "request_id": "req_82ca14627e7be93b1096",
+    "api_version": "2"
+  }
+}
+
+ERRORS:
+422 VALIDATION_ERROR: A field is missing or wrong — error.fields says which.
+404 BUNDLE_NOT_FOUND: Unknown bundle, or not available to your account.
+403 NUMBER_BLACKLISTED: This number can't receive orders on that network.
+403 NUMBER_NOT_VERIFIED: The network only accepts verified numbers right now.
+409 DUPLICATE_ORDER: The number already has an order of the same size in progress.
+409 CLIENT_REFERENCE_EXISTS: You already used this client_reference.
+402 INSUFFICIENT_BALANCE: Top up your wallet. Nothing was charged.
+
+5 Bulk orders
+POST /orders/bulk
+Up to 100 orders per request.
+FIELDS:
+- orders (array): Required. 1-100 items, each {"bundle_id", "recipient"} plus optional client_reference and webhook_url.
+- idempotency_key (string): One key for the whole request.
+- dry_run (boolean): Check every line and the total. Nothing is charged.
+
+curl -X POST "https://console.ackmorre.com/api/v2/orders/bulk" \
+  -H "X-API-Key: YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"idempotency_key": "BATCH-77", "orders": [{"bundle_id": 1, "recipient": "0241234569", "client_reference": "INV-1002"}, {"bundle_id": 2, "recipient": "0551234567"}]}'
+
+RESPONSE 201
+{
+  "ok": true,
+  "data": {
+    "batch_id": "BULK_API_3EF96E8B6B",
+    "summary": {
+      "total": 3,
+      "placed": 2,
+      "failed": 1,
+      "total_charged": 13.5,
+      "balance": 232,
+      "currency": "GHS"
+    },
+    "results": [
+      {
+        "index": 0,
+        "ok": true,
+        "order": {
+          "reference": "BULK_API_3EF96E8B6B_1",
+          "client_reference": "INV-1002",
+          "type": "data",
+          "status": "accepted",
+          "recipient": "0241234569",
+          "network": { "code": "mtn", "name": "MTN" },
+          "bundle": { "id": 1, "label": "MTN 1GB", "capacity_gb": 1 },
+          "price": 4.5,
+          "currency": "GHS",
+          "source": "bulk_api",
+          "webhook_url": null,
+          "failure_reason": null,
+          "created_at": "2026-10-09T16:55:27+00:00",
+          "timeline": { ... }
+        }
+      },
+      {
+        "index": 2,
+        "ok": false,
+        "recipient": "12345",
+        "error": {
+          "code": "VALIDATION_ERROR",
+          "message": "recipient must be a 10-digit Ghana number like 0241234567."
+        }
+      }
+    ]
+  },
+  "meta": {
+    "request_id": "req_a09014d1347a089e9ef2",
+    "api_version": "2"
+  }
+}
+
+6 Check orders
+GET /orders/{ref}
+Use their reference (API_...) or your client_reference.
+curl -X GET "https://console.ackmorre.com/api/v2/orders/INV-1001" \
+  -H "X-API-Key: YOUR_API_KEY"
+
+GET /orders
+List orders with query parameters: status, recipient, client_reference, from, to, page, limit.
+
+Note: Order status lookups (GET /orders, GET /orders/{ref}, GET /afa, GET /afa/{ref}) are disabled unless support enables them for your account. When disabled you get 403 STATUS_CHECKS_DISABLED. Use webhooks for results.
+
+7 AFA registration
+POST /afa
+Submit a registration:
+- full_name (string): Required. 3-150 characters.
+- phone (string): Required. 10-digit Ghana number.
+- ghana_card (string): Required. Format GHA-123456789-0.
+- location (string): Required. Town or district.
+- idempotency_key (string)
+- client_reference (string)
+- webhook_url (string)
+- dry_run (boolean)
+
+8 Webhooks
+We send a POST with JSON to your webhook URL (or to the order's own webhook_url). Reply with any 2xx within 10 seconds.
+Only final results are sent: delivered, failed, or refunded.
+Results arrive together in one call (event orders.finished) with up to 100 results.
+Headers:
+- X-ACKMORRE-Signature: HMAC-SHA256 of the raw body with webhook secret (whsec_... on API Access page), hex.
+- X-ACKMORRE-Event: Same as event, e.g. orders.finished
+- X-ACKMORRE-Attempt: 1 for first try, 2 for retry
+
+GROUPED RESULTS WEBHOOK POST:
+{
+  "event": "orders.finished",
+  "id": "evb_10452_10453",
+  "timestamp": "2026-10-27T21:18:42+00:00",
+  "count": 2,
+  "summary": { "delivered": 1, "failed": 1, "refunded": 0 },
+  "last_event_id": "ev_10453",
+  "orders": [
+    {
+      "event_id": "ev_10452",
+      "type": "data",
+      "reference": "API_11E972C2A572",
+      "client_reference": "INV-1017",
+      "status": "delivered",
+      "recipient": "0243037986",
+      "network": "MTN",
+      "bundle": "MTN 4GB",
+      "volume_mb": 4000,
+      "capacity_gb": 4,
+      "batch": null,
+      "price": 15.6,
+      "reason": null,
+      "finished_at": "2026-10-27T21:18:40+00:00"
+    },
+    {
+      "event_id": "ev_10453",
+      "type": "data",
+      "reference": "BULK_API_8FCFA06EFB_17",
+      "client_reference": null,
+      "status": "failed",
+      "recipient": "0557658196",
+      "network": "MTN",
+      "bundle": "MTN 2GB",
+      "volume_mb": 2000,
+      "capacity_gb": 2,
+      "batch": "BULK_API_8FCFA06EFB",
+      "price": 7.8,
+      "reason": "Beneficiary number not approved",
+      "finished_at": "2026-10-27T21:18:41+00:00"
+    }
+  ]
+}
+
+Order statuses:
+- accepted: Paid, waiting to be sent.
+- placed: Sent to the network provider.
+- processing: Being delivered.
+- delivered: Delivered. Final.
+- failed: Not delivered — see the failure reason. Refunded by our team.
+- refunded: Money returned to your wallet. Final.
+- skipped: Data orders only: not sent (set by our team).

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { requireAdmin } from "@/lib/auth";
 import { ClickyfiedClient, generateClickyfiedReference } from "@/lib/provider-apis/clickyfied";
+import { AckmorreClient } from "@/lib/provider-apis/ackmorre";
 import { getProviderRoutingConfig } from "@/lib/provider-apis/router";
 import { handleRouteError, apiError } from "@/lib/api-helpers";
 
@@ -11,6 +12,16 @@ export async function POST(request: NextRequest) {
     const { action, provider = "CLICKYFIED", recipient = "0257467983", gbAmount = 1 } = body;
 
     const config = await getProviderRoutingConfig();
+
+    if (action === "test_ackmorre") {
+      const client = new AckmorreClient(config.ackmorre);
+      const res = await client.getMe();
+      return NextResponse.json({
+        success: true,
+        provider: "ACKMORRE",
+        data: res,
+      });
+    }
 
     if (action === "test_clickyfied_billing") {
       const client = new ClickyfiedClient(config.clickyfied);
@@ -34,6 +45,39 @@ export async function POST(request: NextRequest) {
           idempotencyKey: externalReference,
         });
         return NextResponse.json({ success: true, provider: "CLICKYFIED", order });
+      }
+
+      if (provider === "ACKMORRE") {
+        const client = new AckmorreClient(config.ackmorre);
+        const network = body.network || "MTN";
+        const bundle = await client.findMatchingBundle({
+          network,
+          gbAmount,
+        });
+
+        if (!bundle) {
+          return apiError(404, `No Ackmorre bundle found for ${network} ${gbAmount}GB`);
+        }
+
+        const clientRef = `TEST-${Date.now()}`;
+        const orderRes = await client.submitOrder({
+          bundleId: bundle.id,
+          recipient,
+          clientReference: clientRef,
+          idempotencyKey: clientRef,
+          dryRun: body.dryRun !== false, // Default dryRun: true to avoid charges during testing
+        });
+
+        return NextResponse.json({
+          success: true,
+          provider: "ACKMORRE",
+          dryRun: body.dryRun !== false,
+          bundle,
+          order: orderRes.order,
+          balance: orderRes.balance,
+          currency: orderRes.currency,
+          raw: orderRes.raw,
+        });
       }
 
       return apiError(400, "Unsupported provider for test order");

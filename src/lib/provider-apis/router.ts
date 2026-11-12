@@ -4,7 +4,8 @@ import { sanitizeCustomerRefundNote, sanitizeCustomerFacingText } from "../types
 import { normalizeGhanaPhoneNumber } from "@/lib/phone-utils";
 import { recordOrderApiLog } from "../order-api-logs";
 import { ClickyfiedClient, DEFAULT_CLICKYFIED_API_KEY, DEFAULT_CLICKYFIED_CLIENT_ID, DEFAULT_CLICKYFIED_SANDBOX_URL, generateClickyfiedReference } from "./clickyfied";
-import type { ProviderRoutingConfig, ProviderType, ProviderDispatchResult, ClickyfiedConfig } from "./types";
+import { AckmorreClient, DEFAULT_ACKMORRE_BASE_URL } from "./ackmorre";
+import type { ProviderRoutingConfig, ProviderType, ProviderDispatchResult, ClickyfiedConfig, AckmorreConfig } from "./types";
 
 /**
  * Standard Ghanaian network keys supported in routing
@@ -71,7 +72,20 @@ export async function getProviderRoutingConfig(): Promise<ProviderRoutingConfig>
       mtnVerificationEnabled: getVal("clickyfied_mtn_verification_enabled", "false") === "true",
       notReceivedEnabled: getVal("clickyfied_not_received_enabled", "true") === "true",
     },
+    ackmorre: {
+      enabled: getVal("ackmorre_enabled", "false") === "true",
+      apiKey: getVal("ackmorre_api_key", ""),
+      baseUrl: getVal("ackmorre_base_url", DEFAULT_ACKMORRE_BASE_URL),
+      webhookSecret: getVal("ackmorre_webhook_secret", ""),
+    },
   };
+}
+
+/**
+ * Check if Ackmorre integration is configured with an active API key
+ */
+export function isAckmorreActive(ackmorre: AckmorreConfig): boolean {
+  return ackmorre.enabled && Boolean(ackmorre.apiKey);
 }
 
 /**
@@ -191,6 +205,11 @@ export async function getProviderForNetwork(
     return "CLICKYFIED";
   }
 
+  // 6. If Ackmorre is enabled, default route is ACKMORRE
+  if (config.ackmorre.enabled) {
+    return "ACKMORRE";
+  }
+
   return "MANUAL";
 }
 
@@ -243,6 +262,8 @@ export async function dispatchOrder(
       success: true,
       provider: order.providerReference.startsWith("CLICKYFIED:")
         ? "CLICKYFIED"
+        : order.providerReference.startsWith("ACKMORRE:")
+        ? "ACKMORRE"
         : "MANUAL",
       status: order.status,
       error: `Order already dispatched to provider (${order.providerReference})`,
@@ -519,6 +540,173 @@ export async function dispatchOrder(
       };
     }
   }
+
+  // -------------------------------------------------------------------------
+  // Dispatched to ACKMORRE
+  // -------------------------------------------------------------------------
+  if (provider === "ACKMORRE") {
+    if (!config.ackmorre.enabled) {
+      return {
+        success: false,
+        provider: "ACKMORRE",
+        error: "Ackmorre integration is disabled in settings.",
+      };
+    }
+    if (!config.ackmorre.apiKey) {
+      return {
+        success: false,
+        provider: "ACKMORRE",
+        error: "Ackmorre API key is missing in settings.",
+      };
+    }
+
+    const client = new AckmorreClient(config.ackmorre);
+    const ackmorreStartTime = Date.now();
+    let submitPayload: any = null;
+
+    try {
+      // Find matching bundle ID for this order
+      const bundle = await client.findMatchingBundle({
+        network: order.network,
+        gbAmount: order.gbAmount,
+        packageNameOrType: order.dataPackage?.name || order.dataPackage?.description,
+        providerProductId: order.dataPackage?.providerProductId,
+      });
+
+      if (!bundle) {
+        throw new Error(
+          `No matching Ackmorre bundle found for network "${order.network}" and volume ${order.gbAmount} GB`
+        );
+      }
+
+      const clientReference = `INV-${order.id}`;
+      const idempotencyKey = `INV-${order.id}`;
+      const isPublicUrl =
+        appBaseUrl &&
+        appBaseUrl.startsWith("https://") &&
+        !appBaseUrl.includes("localhost") &&
+        !appBaseUrl.includes("127.0.0.1");
+      const webhookUrl = isPublicUrl ? `${appBaseUrl}/api/webhooks/providers/ackmorre` : undefined;
+
+      submitPayload = {
+        bundle_id: bundle.id,
+        recipient: normalizeGhanaPhoneNumber(order.phoneNumber),
+        client_reference: clientReference,
+        idempotency_key: idempotencyKey,
+        webhook_url: webhookUrl,
+      };
+
+      const submitRes = await client.submitOrder({
+        bundleId: bundle.id,
+        recipient: order.phoneNumber,
+        clientReference,
+        idempotencyKey,
+        webhookUrl,
+      });
+
+      const durationMs = Date.now() - ackmorreStartTime;
+      const orderData = submitRes.order;
+      const providerRef = orderData?.reference ? `ACKMORRE:${orderData.reference}` : `ACKMORRE:${clientReference}`;
+
+      await prisma.order.update({
+        where: { id: order.id },
+        data: {
+          providerReference: providerRef,
+          externalReference: orderData?.reference || order.externalReference || clientReference,
+        },
+      });
+
+      // Record Order API Log
+      await recordOrderApiLog({
+        orderId: order.id,
+        provider: "ACKMORRE",
+        action: "SUBMIT_ORDER",
+        endpoint: `${config.ackmorre.baseUrl || DEFAULT_ACKMORRE_BASE_URL}/orders`,
+        method: "POST",
+        requestPayload: submitPayload,
+        responsePayload: submitRes.raw,
+        statusCode: 201,
+        success: true,
+        providerReference: providerRef,
+        durationMs,
+      });
+
+      // Dispatched to Ackmorre: advance to PROCESSING (or SUCCESS if immediately delivered)
+      const mappedStatus = mapAckmorreStatus(orderData?.status || "accepted");
+      const targetStatus: "PENDING" | "PROCESSING" | "SUCCESS" | "FAILED" =
+        mappedStatus === "SUCCESS" ? "SUCCESS" : mappedStatus === "FAILED" ? "FAILED" : "PROCESSING";
+
+      if (targetStatus !== order.status) {
+        await changeOrderStatus(
+          order.id,
+          targetStatus,
+          `Dispatched for automated delivery via Ackmorre (Ref: ${orderData?.reference || clientReference})`,
+          { id: "system", label: "Automated System" },
+          { force: true }
+        );
+      } else {
+        await prisma.orderStatusHistory.create({
+          data: {
+            orderId: order.id,
+            status: order.status,
+            previousStatus: order.status,
+            note: `Dispatched for automated delivery via Ackmorre (Ref: ${orderData?.reference || clientReference})`,
+            changedBy: "Automated System",
+          },
+        });
+      }
+
+      return {
+        success: true,
+        provider: "ACKMORRE",
+        providerReference: providerRef,
+        status: targetStatus,
+        price: orderData?.price,
+        raw: submitRes,
+      };
+    } catch (err: any) {
+      const durationMs = Date.now() - ackmorreStartTime;
+      const rawErrMsg = err?.message || "Failed to dispatch order to Ackmorre";
+      const errMsg = sanitizeCustomerFacingText(rawErrMsg) || "Delivery processing failed";
+
+      await prisma.order.update({
+        where: { id: order.id },
+        data: { failureReason: errMsg },
+      });
+
+      await recordOrderApiLog({
+        orderId: order.id,
+        provider: "ACKMORRE",
+        action: "SUBMIT_ORDER",
+        endpoint: err?.endpoint || `${config.ackmorre.baseUrl || DEFAULT_ACKMORRE_BASE_URL}/orders`,
+        method: "POST",
+        requestPayload: submitPayload,
+        responsePayload: err?.rawResponse || err?.rawText || { error: errMsg },
+        statusCode: err?.status || 500,
+        success: false,
+        errorMessage: errMsg,
+        providerReference: submitPayload?.client_reference ? `ACKMORRE:${submitPayload.client_reference}` : null,
+        durationMs,
+      });
+
+      await prisma.orderStatusHistory.create({
+        data: {
+          orderId: order.id,
+          status: order.status,
+          previousStatus: order.status,
+          note: `Dispatch failed: ${errMsg}`,
+          changedBy: "Automated System",
+        },
+      });
+
+      return {
+        success: false,
+        provider: "ACKMORRE",
+        error: errMsg,
+      };
+    }
+  }
+
   return { success: false, provider, error: `Unsupported or unconfigured provider: ${provider}` };
 }
 
@@ -1202,6 +1390,111 @@ export async function syncClickyfiedOrder(
   } finally {
     syncingOrders.delete(orderId);
   }
+}
+
+/**
+ * Maps Ackmorre order status to system status
+ */
+export function mapAckmorreStatus(
+  status?: string | null
+): "PENDING" | "PROCESSING" | "SUCCESS" | "FAILED" | "CANCELLED" {
+  if (!status) return "PROCESSING";
+  const s = status.toLowerCase().trim();
+  switch (s) {
+    case "delivered":
+      return "SUCCESS";
+    case "failed":
+    case "refunded":
+      return "FAILED";
+    case "skipped":
+      return "CANCELLED";
+    case "placed":
+    case "processing":
+    case "accepted":
+    default:
+      return "PROCESSING";
+  }
+}
+
+/**
+ * Synchronizes an individual Ackmorre order's status
+ */
+export async function syncAckmorreOrder(
+  orderIdOrRecord: number | {
+    id: number;
+    status: string;
+    providerReference: string | null;
+    updatedAt: Date;
+    externalReference?: string | null;
+    phoneNumber?: string;
+    gbAmount?: number;
+  },
+  actorLabel = "Ackmorre Sync",
+  options: { forceCheck?: boolean } = {}
+): Promise<{ changed: boolean; previousStatus?: string; newStatus?: string; error?: string }> {
+  const orderId = typeof orderIdOrRecord === "number" ? orderIdOrRecord : orderIdOrRecord.id;
+
+  try {
+    const order = typeof orderIdOrRecord === "number"
+      ? await prisma.order.findUnique({ where: { id: orderId } })
+      : orderIdOrRecord;
+
+    if (!order) return { changed: false, error: "Order not found" };
+
+    if (["SUCCESS", "CANCELLED", "REFUNDED"].includes(order.status)) {
+      return { changed: false, newStatus: order.status };
+    }
+
+    const ref = (order.providerReference || "").replace(/^ACKMORRE:/i, "").trim() || order.externalReference || `INV-${order.id}`;
+    const config = await getProviderRoutingConfig();
+    if (!config.ackmorre.enabled || !config.ackmorre.apiKey) {
+      return { changed: false, error: "Ackmorre is disabled or API key is not configured" };
+    }
+
+    const client = new AckmorreClient(config.ackmorre);
+    const res = await client.getOrder(ref);
+    const orderData = res.order;
+    if (!orderData) return { changed: false };
+
+    const targetStatus = mapAckmorreStatus(orderData.status);
+    if (targetStatus && targetStatus !== order.status) {
+      await changeOrderStatus(
+        order.id,
+        targetStatus,
+        `Status synced from Ackmorre (${orderData.status})`,
+        { id: "system", label: actorLabel },
+        { force: true }
+      );
+      return {
+        changed: true,
+        previousStatus: order.status,
+        newStatus: targetStatus,
+      };
+    }
+
+    return { changed: false };
+  } catch (err: any) {
+    // 403 STATUS_CHECKS_DISABLED is returned by Ackmorre when manual lookups are not enabled (webhook-only mode)
+    if (err?.status === 403 || err?.code === "STATUS_CHECKS_DISABLED") {
+      return { changed: false };
+    }
+    return { changed: false, error: err?.message || "Ackmorre status sync failed" };
+  }
+}
+
+/**
+ * Universal sync helper for an order with whichever provider it was dispatched to
+ */
+export async function syncOrderWithProvider(
+  orderIdOrRecord: any,
+  actorLabel = "System Sync",
+  options: { forceCheck?: boolean } = {}
+): Promise<{ changed: boolean; previousStatus?: string; newStatus?: string; error?: string }> {
+  const ref = typeof orderIdOrRecord === "object" ? orderIdOrRecord?.providerReference || "" : "";
+  if (ref.startsWith("ACKMORRE:")) {
+    return syncAckmorreOrder(orderIdOrRecord, actorLabel, options);
+  }
+  return syncClickyfiedOrder(orderIdOrRecord, actorLabel, options);
 }
 
 /**

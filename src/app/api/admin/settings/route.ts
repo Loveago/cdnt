@@ -54,6 +54,16 @@ export async function PATCH(request: NextRequest) {
         ? "********"
         : `${auditSafeInput.clickyfied_api_key.slice(0, 4)}...${auditSafeInput.clickyfied_api_key.slice(-4)}`;
     }
+    if (typeof auditSafeInput.ackmorre_api_key === "string" && auditSafeInput.ackmorre_api_key) {
+      auditSafeInput.ackmorre_api_key = auditSafeInput.ackmorre_api_key.length <= 8
+        ? "********"
+        : `${auditSafeInput.ackmorre_api_key.slice(0, 4)}...${auditSafeInput.ackmorre_api_key.slice(-4)}`;
+    }
+    if (typeof auditSafeInput.ackmorre_webhook_secret === "string" && auditSafeInput.ackmorre_webhook_secret) {
+      auditSafeInput.ackmorre_webhook_secret = auditSafeInput.ackmorre_webhook_secret.length <= 8
+        ? "********"
+        : `${auditSafeInput.ackmorre_webhook_secret.slice(0, 4)}...${auditSafeInput.ackmorre_webhook_secret.slice(-4)}`;
+    }
 
     await recordAudit({
       userId: actor.id,

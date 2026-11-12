@@ -1,4 +1,4 @@
-export type ProviderType = "MANUAL" | "CLICKYFIED" | (string & {});
+export type ProviderType = "MANUAL" | "CLICKYFIED" | "ACKMORRE" | (string & {});
 
 export interface ClickyfiedConfig {
   enabled: boolean;
@@ -10,15 +10,35 @@ export interface ClickyfiedConfig {
   notReceivedEnabled: boolean;
 }
 
+export interface AckmorreConfig {
+  enabled: boolean;
+  apiKey: string;
+  baseUrl: string;
+  webhookSecret: string;
+}
+
 export interface ProviderRoutingConfig {
   enabled: boolean; // Master switch: if false, everything is manual export
   defaultProvider: ProviderType;
   autoDispatch: boolean; // Dispatch immediately on order creation
-  networkRoutes: Record<string, ProviderType>; // e.g. { "MTN": "CLICKYFIED", "TELECEL": "CLICKYFIED", "AIRTELTIGO_ISHARE": "CLICKYFIED", "AIRTELTIGO_BIGTIME": "CLICKYFIED" }
+  networkRoutes: Record<string, ProviderType>; // e.g. { "MTN": "CLICKYFIED", "TELECEL": "ACKMORRE", ... }
   clickyfied: ClickyfiedConfig;
+  ackmorre: AckmorreConfig;
   // Future provider integrations can be plugged in here
   customProviders?: Record<string, unknown>;
   [key: string]: any;
+}
+
+export interface AckmorreBundle {
+  id: number;
+  label: string;
+  capacity_gb: number;
+  network: {
+    code: string;
+    name: string;
+  };
+  price: number;
+  currency: string;
 }
 
 export interface BigwindataBundle {

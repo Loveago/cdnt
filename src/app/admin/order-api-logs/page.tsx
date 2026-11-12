@@ -314,6 +314,7 @@ export default function OrderApiLogsPage() {
             >
               <option value="ALL">All Providers</option>
               <option value="CLICKYFIED">Clickyfied</option>
+              <option value="ACKMORRE">Ackmorre</option>
               <option value="BIGWINDATA">Bigwindata</option>
             </select>
 
@@ -397,6 +398,7 @@ export default function OrderApiLogsPage() {
               <tbody className="divide-y divide-slate-100 dark:divide-white/5">
                 {logs.map((log) => {
                   const isClickyfied = log.provider === "CLICKYFIED";
+                  const isAckmorre = log.provider === "ACKMORRE";
                   const isBigwin = log.provider === "BIGWINDATA";
                   return (
                     <tr
@@ -438,6 +440,10 @@ export default function OrderApiLogsPage() {
                         {isClickyfied ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-indigo-500/10 px-2.5 py-0.5 text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
                             🚀 Clickyfied
+                          </span>
+                        ) : isAckmorre ? (
+                          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-bold text-emerald-600 dark:text-emerald-400">
+                            ⚡ Ackmorre
                           </span>
                         ) : isBigwin ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-bold text-amber-600 dark:text-amber-400">

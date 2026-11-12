@@ -350,6 +350,12 @@ export const settingsSchema = z.object({
   clickyfied_mtn_verification_enabled: z.enum(["true", "false"]).optional(),
   clickyfied_not_received_enabled: z.enum(["true", "false"]).optional(),
 
+  // Ackmorre Settings
+  ackmorre_enabled: z.enum(["true", "false"]).optional(),
+  ackmorre_api_key: z.string().max(255).optional(),
+  ackmorre_base_url: z.string().max(255).optional(),
+  ackmorre_webhook_secret: z.string().max(255).optional(),
+
   // GHConnect Settings
   ghconnect_enabled: z.enum(["true", "false"]).optional(),
   ghconnect_api_key: z.string().max(255).optional(),

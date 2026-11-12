@@ -332,6 +332,7 @@ export function sanitizeCustomerFacingText(text: string | null | undefined): str
   s = s.replace(/\[PROVIDER_REPORT_ID:[^\]]+\]/gi, "");
   s = s.replace(/\[?CLICKYFIED_REPORT_ID:[^\]]+\]?/gi, "");
   s = s.replace(/CLICKYFIED:[a-z0-9_-]+(?::[a-z0-9_-]+)?/gi, "");
+  s = s.replace(/ACKMORRE:[a-z0-9_-]+(?::[a-z0-9_-]+)?/gi, "");
 
   // Convert common provider failure/status phrases into clean customer language
   s = s.replace(/order marked as failed by [a-z0-9_-]+(?:\s*provider)?/gi, "Order delivery failed");
@@ -361,6 +362,13 @@ export function sanitizeCustomerFacingText(text: string | null | undefined): str
     .replace(/clickyfied provider/gi, "network provider")
     .replace(/clickyfied/gi, "")
     .replace(/clickify/gi, "")
+    .replace(/on ackmorre/gi, "")
+    .replace(/by ackmorre callback/gi, "")
+    .replace(/by ackmorre provider/gi, "")
+    .replace(/ackmorre callback/gi, "System Sync")
+    .replace(/ackmorre api/gi, "System")
+    .replace(/ackmorre provider/gi, "network provider")
+    .replace(/ackmorre/gi, "")
     .replace(/bigwindata/gi, "")
     .replace(/bigwin/gi, "");
 
