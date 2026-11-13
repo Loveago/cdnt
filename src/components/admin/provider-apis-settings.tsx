@@ -992,6 +992,153 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
             </p>
           </div>
         </div>
+
+        {/* Dedicated Ackmorre Background Status Poller (MTN & Telecel) */}
+        <div className="pt-4 border-t border-slate-100 dark:border-slate-800 p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/40 space-y-3">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="space-y-0.5">
+              <div className="text-xs font-semibold text-slate-900 dark:text-white flex items-center gap-2">
+                <RefreshCw
+                  className={`h-4 w-4 ${
+                    settings.ackmorre_poller_enabled !== "false"
+                      ? "text-emerald-600"
+                      : "text-slate-400"
+                  }`}
+                />
+                Automated Ackmorre Status Poller (MTN & Telecel)
+                <span
+                  className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                    settings.ackmorre_poller_enabled !== "false"
+                      ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+                      : "bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
+                  }`}
+                >
+                  {settings.ackmorre_poller_enabled !== "false"
+                    ? `Active (Every ${parseInt(settings.ackmorre_poller_interval_seconds || "60", 10) || 60}s)`
+                    : "Paused"}
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 max-w-xl leading-relaxed">
+                Separate background poller that queries Ackmorre for in-flight <strong>MTN</strong> and <strong>Telecel</strong> order statuses independently from Clickyfied. Requires Ackmorre status lookups to be enabled on your account; otherwise webhooks handle updates.
+              </p>
+            </div>
+            <button
+              type="button"
+              role="switch"
+              aria-checked={settings.ackmorre_poller_enabled !== "false"}
+              onClick={() =>
+                setSettings((s) => ({
+                  ...s,
+                  ackmorre_poller_enabled:
+                    s.ackmorre_poller_enabled === "false" ? "true" : "false",
+                }))
+              }
+              className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+                settings.ackmorre_poller_enabled !== "false"
+                  ? "bg-emerald-600"
+                  : "bg-slate-300 dark:bg-slate-700"
+              }`}
+            >
+              <span
+                className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+                  settings.ackmorre_poller_enabled !== "false"
+                    ? "left-[22px]"
+                    : "left-0.5"
+                }`}
+              />
+            </button>
+          </div>
+
+          {settings.ackmorre_poller_enabled !== "false" && (
+            <div className="pt-2.5 border-t border-slate-200/60 dark:border-slate-700/50 space-y-3 text-xs">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <span className="font-medium text-slate-700 dark:text-slate-300">Networks to Poll:</span>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Toggle MTN and Telecel status polling independently.
+                  </p>
+                </div>
+                <div className="flex items-center gap-3">
+                  <label className="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settings.ackmorre_poller_mtn_enabled !== "false"}
+                      onChange={(e) =>
+                        setSettings((s) => ({
+                          ...s,
+                          ackmorre_poller_mtn_enabled: e.target.checked ? "true" : "false",
+                        }))
+                      }
+                      className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <span className="text-xs font-medium text-slate-700 dark:text-slate-200">MTN</span>
+                  </label>
+                  <label className="inline-flex items-center gap-2 px-2.5 py-1 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settings.ackmorre_poller_telecel_enabled !== "false"}
+                      onChange={(e) =>
+                        setSettings((s) => ({
+                          ...s,
+                          ackmorre_poller_telecel_enabled: e.target.checked ? "true" : "false",
+                        }))
+                      }
+                      className="rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                    />
+                    <span className="text-xs font-medium text-slate-700 dark:text-slate-200">Telecel</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-2 border-t border-slate-200/60 dark:border-slate-700/50">
+                <div className="space-y-0.5">
+                  <span className="font-medium text-slate-700 dark:text-slate-300">Polling Interval:</span>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    Timer frequency for checking in-flight Ackmorre MTN & Telecel orders.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  {[30, 60, 120].map((sec) => (
+                    <button
+                      key={sec}
+                      type="button"
+                      onClick={() =>
+                        setSettings((s) => ({
+                          ...s,
+                          ackmorre_poller_interval_seconds: String(sec),
+                        }))
+                      }
+                      className={`px-2.5 py-1 text-xs rounded-lg font-medium transition-colors ${
+                        (parseInt(settings.ackmorre_poller_interval_seconds || "60", 10) || 60) === sec
+                          ? "bg-emerald-600 text-white shadow-sm"
+                          : "bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
+                      }`}
+                    >
+                      {sec}s {sec === 60 ? "(Default)" : ""}
+                    </button>
+                  ))}
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="number"
+                      min="15"
+                      max="600"
+                      value={parseInt(settings.ackmorre_poller_interval_seconds || "60", 10) || 60}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setSettings((s) => ({
+                          ...s,
+                          ackmorre_poller_interval_seconds: val,
+                        }));
+                      }}
+                      className="w-16 px-2 py-1 text-xs text-center rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                    />
+                    <span className="text-[11px] text-slate-500">sec</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
 

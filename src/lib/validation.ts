@@ -355,6 +355,10 @@ export const settingsSchema = z.object({
   ackmorre_api_key: z.string().max(255).optional(),
   ackmorre_base_url: z.string().max(255).optional(),
   ackmorre_webhook_secret: z.string().max(255).optional(),
+  ackmorre_poller_enabled: z.enum(["true", "false"]).optional(),
+  ackmorre_poller_mtn_enabled: z.enum(["true", "false"]).optional(),
+  ackmorre_poller_telecel_enabled: z.enum(["true", "false"]).optional(),
+  ackmorre_poller_interval_seconds: z.string().max(10).optional(),
 
   // GHConnect Settings
   ghconnect_enabled: z.enum(["true", "false"]).optional(),

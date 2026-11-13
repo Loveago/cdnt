@@ -1431,7 +1431,7 @@ export async function syncAckmorreOrder(
   },
   actorLabel = "Ackmorre Sync",
   options: { forceCheck?: boolean } = {}
-): Promise<{ changed: boolean; previousStatus?: string; newStatus?: string; error?: string }> {
+): Promise<{ changed: boolean; previousStatus?: string; newStatus?: string; error?: string; statusChecksDisabled?: boolean }> {
   const orderId = typeof orderIdOrRecord === "number" ? orderIdOrRecord : orderIdOrRecord.id;
 
   try {
@@ -1476,7 +1476,7 @@ export async function syncAckmorreOrder(
   } catch (err: any) {
     // 403 STATUS_CHECKS_DISABLED is returned by Ackmorre when manual lookups are not enabled (webhook-only mode)
     if (err?.status === 403 || err?.code === "STATUS_CHECKS_DISABLED") {
-      return { changed: false };
+      return { changed: false, statusChecksDisabled: true };
     }
     return { changed: false, error: err?.message || "Ackmorre status sync failed" };
   }
