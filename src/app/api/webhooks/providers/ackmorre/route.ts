@@ -78,9 +78,8 @@ export async function POST(request: NextRequest) {
       }
       if (clientRef) {
         searchConditions.push(
-          { clientReference: clientRef },
           { externalReference: clientRef },
-          { orderNumber: clientRef }
+          { providerReference: `ACKMORRE:${clientRef}` }
         );
         const parsedId = parseOrderCode(clientRef);
         if (parsedId && parsedId > 0) {
@@ -94,10 +93,12 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      let order = await prisma.order.findFirst({
-        where: { OR: searchConditions },
-        include: { user: true },
-      });
+      let order = searchConditions.length > 0
+        ? await prisma.order.findFirst({
+            where: { OR: searchConditions },
+            include: { user: true },
+          })
+        : null;
 
       // Fallback: If not found by reference, try matching by phone and recent creation
       if (!order && recipient) {
