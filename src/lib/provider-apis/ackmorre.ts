@@ -471,6 +471,42 @@ export class AckmorreClient {
   }
 
   /**
+   * Check if a phone number is verified on a network before sending an order.
+   * Endpoint: GET /number-check?network=mtn&phone=0241234567
+   * Rate limit: 30 requests per minute per account.
+   */
+  async checkNumber(
+    phone: string,
+    network: "mtn" | "telecel" | "at_ishare" = "mtn"
+  ): Promise<{
+    verified: boolean;
+    phone: string;
+    network: string;
+    raw: unknown;
+  }> {
+    const normalized = normalizeGhanaPhoneNumber(phone);
+    const endpoint = `/number-check?network=${encodeURIComponent(network)}&phone=${encodeURIComponent(normalized)}`;
+    const res = await this.request<{
+      ok?: boolean;
+      status?: string;
+      data?: {
+        phone?: string;
+        network?: string;
+        network_code?: string;
+        verified?: boolean;
+      };
+      meta?: any;
+    }>(endpoint);
+
+    return {
+      verified: res?.data?.verified === true,
+      phone: res?.data?.phone || normalized,
+      network: res?.data?.network || network,
+      raw: res,
+    };
+  }
+
+  /**
    * Verify HMAC-SHA256 signature on incoming Ackmorre webhook payload
    * Header: X-ACKMORRE-Signature (hex-encoded HMAC-SHA256 with webhook secret)
    */

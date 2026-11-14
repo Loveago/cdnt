@@ -98,50 +98,74 @@ async function executeVerification(
   const mtnVerifySetting = await prisma.systemSetting.findUnique({
     where: { key: "mtn_number_verification_enabled" },
   });
-  const mtnVerificationEnabled = mtnVerifySetting?.value === "true";
+  let mtnVerificationEnabled = mtnVerifySetting?.value === "true";
 
   // ── Batch-fetch accepted MTN numbers for all valid numbers ───────────
   // Querying all valid numbers allows detecting ported numbers that are already whitelisted.
   const validNormalized = entries.filter((e) => e.valid).map((e) => e.normalized);
 
-  const acceptedRows =
-    validNormalized.length > 0 && !authContext.isSandbox
-      ? await prisma.acceptedMtnNumber.findMany({
-          where: { normalizedNumber: { in: validNormalized } },
-          select: { normalizedNumber: true },
-        })
-      : [];
+  const {
+    isAckmorreMtnVerificationActive,
+    verifyMtnNumbersWithAckmorre,
+  } = await import("@/lib/mtn-verification");
+  const ackmorreCheck = !authContext.isSandbox
+    ? await isAckmorreMtnVerificationActive().catch(() => ({
+        active: false,
+        ackmorreConfig: undefined,
+      }))
+    : { active: false, ackmorreConfig: undefined };
 
-  const acceptedSet = new Set(acceptedRows.map((r) => r.normalizedNumber));
+  let acceptedSet = new Set<string>();
 
-  // If Clickyfied verification is enabled, query Clickyfied for any candidate MTN numbers not yet in local DB
-  if (!authContext.isSandbox) {
-    const candidateMtn = entries
-      .filter((e) => e.valid && (e.targetNetwork === "MTN" || e.network === "MTN"))
-      .map((e) => e.normalized);
-    const missingFromLocal = candidateMtn.filter((num) => !acceptedSet.has(num));
-
-    if (missingFromLocal.length > 0) {
-      const clickyfiedSetting = await prisma.systemSetting.findUnique({
-        where: { key: "clickyfied_mtn_verification_enabled" },
+  if (!authContext.isSandbox && validNormalized.length > 0) {
+    if (ackmorreCheck.active && ackmorreCheck.ackmorreConfig) {
+      mtnVerificationEnabled = true;
+      const candidateMtn = entries
+        .filter((e) => e.valid && (e.targetNetwork === "MTN" || e.network === "MTN"))
+        .map((e) => e.normalized);
+      if (candidateMtn.length > 0) {
+        const { verifiedSet } = await verifyMtnNumbersWithAckmorre(
+          candidateMtn,
+          ackmorreCheck.ackmorreConfig
+        );
+        acceptedSet = verifiedSet;
+      }
+    } else {
+      const acceptedRows = await prisma.acceptedMtnNumber.findMany({
+        where: { normalizedNumber: { in: validNormalized } },
+        select: { normalizedNumber: true },
       });
-      if (clickyfiedSetting?.value === "true") {
-        try {
-          const { getProviderRoutingConfig } = await import("@/lib/provider-apis/router");
-          const { ClickyfiedClient } = await import("@/lib/provider-apis/clickyfied");
-          const { addAcceptedMtnNumber } = await import("@/lib/mtn-verification");
-          const config = await getProviderRoutingConfig();
-          const client = new ClickyfiedClient(config.clickyfied);
-          const res = await client.verifyNumbers(missingFromLocal);
-          const validNorms = new Set(res.validNumbers.map((n) => normalizeGhanaPhoneNumber(n)));
-          for (const num of missingFromLocal) {
-            if (validNorms.has(num)) {
-              await addAcceptedMtnNumber(num, "CLICKYFIED_API", "Automated Verification API").catch(() => {});
-              acceptedSet.add(num);
+
+      acceptedSet = new Set(acceptedRows.map((r) => r.normalizedNumber));
+
+      // If Clickyfied verification is enabled, query Clickyfied for any candidate MTN numbers not yet in local DB
+      const candidateMtn = entries
+        .filter((e) => e.valid && (e.targetNetwork === "MTN" || e.network === "MTN"))
+        .map((e) => e.normalized);
+      const missingFromLocal = candidateMtn.filter((num) => !acceptedSet.has(num));
+
+      if (missingFromLocal.length > 0) {
+        const clickyfiedSetting = await prisma.systemSetting.findUnique({
+          where: { key: "clickyfied_mtn_verification_enabled" },
+        });
+        if (clickyfiedSetting?.value === "true") {
+          try {
+            const { getProviderRoutingConfig } = await import("@/lib/provider-apis/router");
+            const { ClickyfiedClient } = await import("@/lib/provider-apis/clickyfied");
+            const { addAcceptedMtnNumber } = await import("@/lib/mtn-verification");
+            const config = await getProviderRoutingConfig();
+            const client = new ClickyfiedClient(config.clickyfied);
+            const res = await client.verifyNumbers(missingFromLocal);
+            const validNorms = new Set(res.validNumbers.map((n) => normalizeGhanaPhoneNumber(n)));
+            for (const num of missingFromLocal) {
+              if (validNorms.has(num)) {
+                await addAcceptedMtnNumber(num, "CLICKYFIED_API", "Automated Verification API").catch(() => {});
+                acceptedSet.add(num);
+              }
             }
+          } catch (err) {
+            console.error("Clickyfied verification error in /v1/numbers/verify:", err);
           }
-        } catch (err) {
-          console.error("Clickyfied verification error in /v1/numbers/verify:", err);
         }
       }
     }

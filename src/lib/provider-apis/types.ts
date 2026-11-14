@@ -15,6 +15,7 @@ export interface AckmorreConfig {
   apiKey: string;
   baseUrl: string;
   webhookSecret: string;
+  mtnVerificationEnabled: boolean;
 }
 
 export interface ProviderRoutingConfig {

@@ -927,6 +927,8 @@ export default function AdminMtnVerificationPage() {
                   <option value="IMPORT_CSV">Import (CSV)</option>
                   <option value="BATCH_VERIFICATION">Batch Verification</option>
                   <option value="BLOCKED_NUMBER_PROMOTION">Blocked Promotion</option>
+                  <option value="CLICKYFIED_API">Clickyfied API</option>
+                  <option value="ACKMORRE_API">Ackmorre API</option>
                 </select>
               </div>
 
@@ -1047,9 +1049,16 @@ export default function AdminMtnVerificationPage() {
                             </div>
                           </td>
                           <td className="px-3 py-2.5">
-                            <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">
-                              {a.source}
-                            </span>
+                            <div className="flex flex-wrap items-center gap-1">
+                              <span className="rounded bg-slate-100 px-1.5 py-0.5 text-[11px] font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">
+                                {a.source}
+                              </span>
+                              {a.ackmorreVerified && (
+                                <span className="inline-flex items-center rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-600/20 dark:bg-emerald-950/60 dark:text-emerald-300">
+                                  Verified by Ackmorre
+                                </span>
+                              )}
+                            </div>
                           </td>
                           <td className="px-3 py-2.5 font-mono text-[11px] text-slate-500">
                             {a.batch?.batchReference || "—"}

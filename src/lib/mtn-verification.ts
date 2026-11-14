@@ -72,6 +72,157 @@ export async function isMtnNumberAccepted(normalizedNumber: string): Promise<boo
   return !!row;
 }
 
+export async function isMtnNumberVerifiedByAckmorre(normalizedNumber: string): Promise<boolean> {
+  const canonical = normalizeGhanaPhoneNumber(normalizedNumber);
+  const row = await prisma.acceptedMtnNumber.findUnique({
+    where: { normalizedNumber: canonical },
+    select: { ackmorreVerified: true },
+  });
+  return Boolean(row?.ackmorreVerified);
+}
+
+/**
+ * Marks a number in AcceptedMtnNumber as verified by Ackmorre.
+ * If the number already exists in AcceptedMtnNumber (e.g. MANUAL or CLICKYFIED_API),
+ * sets ackmorreVerified=true without overwriting its original source.
+ * If it does not exist yet, creates it with source="ACKMORRE_API" and ackmorreVerified=true.
+ */
+export async function markAcceptedMtnNumberAckmorreVerified(number: string) {
+  const canonical = normalizeGhanaPhoneNumber(number);
+  if (!isValidGhanaPhoneNumber(canonical)) {
+    throw new Error(`Invalid Ghanaian phone number: ${number}`);
+  }
+
+  const now = new Date();
+  const existing = await prisma.acceptedMtnNumber.findUnique({
+    where: { normalizedNumber: canonical },
+  });
+
+  if (existing) {
+    if (existing.ackmorreVerified) {
+      return existing;
+    }
+    const updated = await prisma.acceptedMtnNumber.update({
+      where: { normalizedNumber: canonical },
+      data: {
+        ackmorreVerified: true,
+        ackmorreVerifiedAt: now,
+      },
+    });
+    await syncAcceptedNumberStatus(canonical, existing.verifiedBy || "Verified by Ackmorre");
+    return updated;
+  }
+
+  const record = await prisma.acceptedMtnNumber.create({
+    data: {
+      number: canonical,
+      normalizedNumber: canonical,
+      source: "ACKMORRE_API",
+      ackmorreVerified: true,
+      ackmorreVerifiedAt: now,
+      verifiedBy: "Verified by Ackmorre",
+      verifiedAt: now,
+    },
+  });
+
+  await syncAcceptedNumberStatus(canonical, "Verified by Ackmorre");
+  return record;
+}
+
+/**
+ * Checks whether Ackmorre MTN number verification is active for MTN orders.
+ */
+export async function isAckmorreMtnVerificationActive(packageNameOrType?: string | null): Promise<{
+  active: boolean;
+  ackmorreConfig?: import("./provider-apis/types").AckmorreConfig;
+}> {
+  const { getProviderRoutingConfig, getProviderForNetwork, isAckmorreActive } = await import("./provider-apis/router");
+  const config = await getProviderRoutingConfig();
+  if (!config.enabled || !isAckmorreActive(config.ackmorre) || !config.ackmorre.mtnVerificationEnabled) {
+    return { active: false };
+  }
+  const provider = await getProviderForNetwork("MTN", packageNameOrType);
+  if (provider !== "ACKMORRE") {
+    return { active: false };
+  }
+  return { active: true, ackmorreConfig: config.ackmorre };
+}
+
+/**
+ * Verifies a list of MTN numbers using our DB tag (ackmorreVerified=true) first,
+ * then Ackmorre's GET /number-check endpoint for any remaining unverified numbers.
+ * Respects Ackmorre's 30 req/min rate limit by capping per-call checks and stopping on 429/403.
+ */
+export async function verifyMtnNumbersWithAckmorre(
+  numbers: string[],
+  ackmorreConfig?: import("./provider-apis/types").AckmorreConfig
+): Promise<{
+  verifiedSet: Set<string>;
+  unverifiedSet: Set<string>;
+  rateLimited: boolean;
+}> {
+  const canonicalList = Array.from(new Set(numbers.map((n) => normalizeGhanaPhoneNumber(n)).filter(Boolean)));
+  const verifiedSet = new Set<string>();
+  const unverifiedSet = new Set<string>();
+
+  if (canonicalList.length === 0) {
+    return { verifiedSet, unverifiedSet, rateLimited: false };
+  }
+
+  // 1. Check local database for the ackmorreVerified tag first
+  const cachedRows = await prisma.acceptedMtnNumber.findMany({
+    where: {
+      normalizedNumber: { in: canonicalList },
+      ackmorreVerified: true,
+    },
+    select: { normalizedNumber: true },
+  });
+  for (const row of cachedRows) {
+    verifiedSet.add(row.normalizedNumber);
+  }
+
+  const toCheck = canonicalList.filter((n) => !verifiedSet.has(n));
+  if (toCheck.length === 0) {
+    return { verifiedSet, unverifiedSet, rateLimited: false };
+  }
+
+  const { getProviderRoutingConfig } = await import("./provider-apis/router");
+  const { AckmorreClient } = await import("./provider-apis/ackmorre");
+  const cfg = ackmorreConfig ?? (await getProviderRoutingConfig()).ackmorre;
+  const client = new AckmorreClient(cfg);
+
+  let rateLimited = false;
+  // Cap per-call external checks to stay safely under Ackmorre's 30 req/min limit
+  const maxExternalChecks = 25;
+  for (let i = 0; i < toCheck.length; i++) {
+    const phone = toCheck[i];
+    if (rateLimited || i >= maxExternalChecks) {
+      unverifiedSet.add(phone);
+      continue;
+    }
+
+    try {
+      const res = await client.checkNumber(phone, "mtn");
+      if (res.verified) {
+        await markAcceptedMtnNumberAckmorreVerified(phone).catch((err) => {
+          console.error("Failed to mark number as Ackmorre verified:", err);
+        });
+        verifiedSet.add(phone);
+      } else {
+        unverifiedSet.add(phone);
+      }
+    } catch (err: any) {
+      if (err?.status === 429 || err?.code === "RATE_LIMITED") {
+        rateLimited = true;
+      }
+      console.error(`Ackmorre number-check error for ${phone}:`, err?.message || err);
+      unverifiedSet.add(phone);
+    }
+  }
+
+  return { verifiedSet, unverifiedSet, rateLimited };
+}
+
 export class MtnNumberNotVerifiedError extends Error {
   constructor(message = "This MTN number has not been verified yet. Please submit the number for verification before purchasing an MTN package.") {
     super(message);
@@ -83,20 +234,24 @@ export class MtnNumberNotVerifiedError extends Error {
  * Centrally validates a recipient number for an MTN order.
  * - If network is NOT MTN, returns { allowed: true } immediately.
  * - If network IS MTN:
- *   - Normalizes number
- *   - Checks if number is in Accepted MTN Numbers
- *   - If verification is ON:
- *     - If accepted: { allowed: true }
- *     - If not accepted: throws or returns { allowed: false, reason: ... }
- *   - If verification is OFF:
- *     - If accepted: { allowed: true }
- *     - If not accepted: records/updates in BlockedMtnNumber (unverified review list) and returns { allowed: true }
+ *   - If Ackmorre is the active MTN provider and Ackmorre verification is enabled:
+ *     - Checks DB for ackmorreVerified=true first, then Ackmorre's GET /number-check endpoint.
+ *     - If verified on Ackmorre, tags/stores in AcceptedMtnNumber with ackmorreVerified=true and allows.
+ *     - If NOT verified on Ackmorre, refuses the order (regardless of non-Ackmorre DB entries).
+ *   - Otherwise (Clickyfied / Manual):
+ *     - Checks if number is in Accepted MTN Numbers (including Ackmorre-verified numbers).
+ *     - If verification is ON:
+ *       - If accepted: { allowed: true }
+ *       - If not accepted: throws or returns { allowed: false, reason: ... }
+ *     - If verification is OFF:
+ *       - If accepted: { allowed: true }
+ *       - If not accepted: records/updates in BlockedMtnNumber (unverified review list) and returns { allowed: true }
  */
 export async function validateMtnOrderRecipient(
   phoneNumber: string,
   network: string,
   userId?: string | null,
-  opts: { throwOnFailure?: boolean; recordUnverified?: boolean } = {}
+  opts: { throwOnFailure?: boolean; recordUnverified?: boolean; packageNameOrType?: string | null } = {}
 ): Promise<{ allowed: boolean; reason?: string }> {
   const net = network.toUpperCase();
   if (net !== "MTN") {
@@ -104,6 +259,39 @@ export async function validateMtnOrderRecipient(
   }
 
   const normalized = normalizeGhanaPhoneNumber(phoneNumber);
+
+  // Ackmorre MTN Number Verification Mode
+  const ackmorreCheck = await isAckmorreMtnVerificationActive(opts.packageNameOrType).catch(() => ({
+    active: false,
+    ackmorreConfig: undefined,
+  }));
+  if (ackmorreCheck.active && ackmorreCheck.ackmorreConfig) {
+    const { verifiedSet, rateLimited } = await verifyMtnNumbersWithAckmorre(
+      [normalized],
+      ackmorreCheck.ackmorreConfig
+    );
+    if (verifiedSet.has(normalized)) {
+      return { allowed: true };
+    }
+
+    if (opts.recordUnverified !== false) {
+      await recordUnverifiedMtnNumber({
+        number: normalized,
+        userId: userId ?? null,
+      }).catch((err) => {
+        console.error("Failed to record unverified MTN number during Ackmorre validation:", err);
+      });
+    }
+
+    const reason = rateLimited
+      ? "Ackmorre number verification rate limit reached. Please try again in a moment."
+      : "This MTN number is not verified on Ackmorre. Orders to unverified numbers are not permitted while Ackmorre verification is active.";
+    if (opts.throwOnFailure) {
+      throw new MtnNumberNotVerifiedError(reason);
+    }
+    return { allowed: false, reason };
+  }
+
   const verificationEnabled = await isMtnVerificationEnabled();
   let isAccepted = await isMtnNumberAccepted(normalized);
   if (verificationEnabled && !isAccepted) {

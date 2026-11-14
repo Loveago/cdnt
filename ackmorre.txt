@@ -1,4 +1,4 @@
-API INTEGRATION GUIDE · VERSION 2
+ API INTEGRATION GUIDE · VERSION 2
 ACKMORRE API v2
 How to sell data bundles and AFA registrations from your own website or app: every endpoint with real requests and replies, webhooks, errors and safe retries.
 

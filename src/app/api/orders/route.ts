@@ -202,75 +202,113 @@ export async function POST(request: NextRequest) {
     // Validate MTN numbers before balance deduction in batch (§2, §16)
     const mtnOrders = deduplicatedOrders.filter((o) => o.network.toUpperCase() === "MTN");
     if (mtnOrders.length > 0) {
-      const verificationEnabled = await isMtnVerificationEnabled();
-      const mtnCanonicalList = Array.from(
-        new Set(mtnOrders.map((o) => normalizeGhanaPhoneNumber(o.phoneNumber)))
-      );
-      const acceptedRows = await prisma.acceptedMtnNumber.findMany({
-        where: { normalizedNumber: { in: mtnCanonicalList } },
-        select: { normalizedNumber: true },
-      });
-      const acceptedSet = new Set(acceptedRows.map((r) => r.normalizedNumber));
+      const {
+        isAckmorreMtnVerificationActive,
+        verifyMtnNumbersWithAckmorre,
+      } = await import("@/lib/mtn-verification");
+      const ackmorreCheck = await isAckmorreMtnVerificationActive().catch(() => ({
+        active: false,
+        ackmorreConfig: undefined,
+      }));
 
-      if (verificationEnabled) {
-        let unverified = mtnOrders.filter(
-          (o) => !acceptedSet.has(normalizeGhanaPhoneNumber(o.phoneNumber))
+      if (ackmorreCheck.active && ackmorreCheck.ackmorreConfig) {
+        const mtnCanonicalList = Array.from(
+          new Set(mtnOrders.map((o) => normalizeGhanaPhoneNumber(o.phoneNumber)))
         );
-
-        // Fallback: If Clickyfied verification is enabled, check unverified numbers against Clickyfied
+        const { verifiedSet, rateLimited } = await verifyMtnNumbersWithAckmorre(
+          mtnCanonicalList,
+          ackmorreCheck.ackmorreConfig
+        );
+        const unverified = mtnOrders.filter(
+          (o) => !verifiedSet.has(normalizeGhanaPhoneNumber(o.phoneNumber))
+        );
         if (unverified.length > 0) {
-          const clickyfiedSetting = await prisma.systemSetting.findUnique({
-            where: { key: "clickyfied_mtn_verification_enabled" },
-          });
-          if (clickyfiedSetting?.value === "true") {
-            try {
-              const { getProviderRoutingConfig } = await import("@/lib/provider-apis/router");
-              const { ClickyfiedClient } = await import("@/lib/provider-apis/clickyfied");
-              const { addAcceptedMtnNumber } = await import("@/lib/mtn-verification");
-              const config = await getProviderRoutingConfig();
-              const client = new ClickyfiedClient(config.clickyfied);
-              const unverifiedPhones = Array.from(
-                new Set(unverified.map((o) => normalizeGhanaPhoneNumber(o.phoneNumber)))
-              );
-              const res = await client.verifyNumbers(unverifiedPhones);
-              const validNorms = new Set(res.validNumbers.map((n) => normalizeGhanaPhoneNumber(n)));
-              for (const phone of unverifiedPhones) {
-                if (validNorms.has(phone)) {
-                  await addAcceptedMtnNumber(phone, "CLICKYFIED_API", "Automated Verification API").catch(() => {});
-                  acceptedSet.add(phone);
-                }
-              }
-              // Recompute remaining unverified
-              unverified = mtnOrders.filter(
-                (o) => !acceptedSet.has(normalizeGhanaPhoneNumber(o.phoneNumber))
-              );
-            } catch (err) {
-              console.error("Clickyfied verification check in /api/orders error:", err);
-            }
-          }
-        }
-
-        if (unverified.length > 0) {
-          // Record unverified numbers in BlockedMtnNumber registry for admin review & verification
           const unverifiedItems = unverified.map((o) => ({ number: o.phoneNumber, userId: user.id }));
           await recordUnverifiedMtnNumbersBatch(unverifiedItems).catch((err) => {
-            console.error("Failed to record unverified MTN numbers during order submission:", err);
+            console.error("Failed to record unverified MTN numbers during Ackmorre order submission:", err);
           });
 
           const sample = unverified.slice(0, 5).map((o) => o.phoneNumber).join(", ");
           const more = unverified.length > 5 ? ` and ${unverified.length - 5} more` : "";
+          const rateMsg = rateLimited
+            ? " (Ackmorre verification rate limit reached; please try again shortly.)"
+            : "";
           return apiError(
             400,
-            `Cannot place order: ${unverified.length} MTN number(s) have not been verified yet (${sample}${more}). Please submit for verification or remove them.`
+            `Cannot place order: ${unverified.length} MTN number(s) are not verified on Ackmorre (${sample}${more}).${rateMsg}`
           );
         }
       } else {
-        // Verification toggle is OFF: allow orders, but log unverified numbers in bulk
-        const unverifiedItems = mtnOrders
-          .filter((o) => !acceptedSet.has(normalizeGhanaPhoneNumber(o.phoneNumber)))
-          .map((o) => ({ number: o.phoneNumber, userId: user.id }));
-        if (unverifiedItems.length > 0) {
-          await recordUnverifiedMtnNumbersBatch(unverifiedItems);
+        const verificationEnabled = await isMtnVerificationEnabled();
+        const mtnCanonicalList = Array.from(
+          new Set(mtnOrders.map((o) => normalizeGhanaPhoneNumber(o.phoneNumber)))
+        );
+        const acceptedRows = await prisma.acceptedMtnNumber.findMany({
+          where: { normalizedNumber: { in: mtnCanonicalList } },
+          select: { normalizedNumber: true },
+        });
+        const acceptedSet = new Set(acceptedRows.map((r) => r.normalizedNumber));
+
+        if (verificationEnabled) {
+          let unverified = mtnOrders.filter(
+            (o) => !acceptedSet.has(normalizeGhanaPhoneNumber(o.phoneNumber))
+          );
+
+          // Fallback: If Clickyfied verification is enabled, check unverified numbers against Clickyfied
+          if (unverified.length > 0) {
+            const clickyfiedSetting = await prisma.systemSetting.findUnique({
+              where: { key: "clickyfied_mtn_verification_enabled" },
+            });
+            if (clickyfiedSetting?.value === "true") {
+              try {
+                const { getProviderRoutingConfig } = await import("@/lib/provider-apis/router");
+                const { ClickyfiedClient } = await import("@/lib/provider-apis/clickyfied");
+                const { addAcceptedMtnNumber } = await import("@/lib/mtn-verification");
+                const config = await getProviderRoutingConfig();
+                const client = new ClickyfiedClient(config.clickyfied);
+                const unverifiedPhones = Array.from(
+                  new Set(unverified.map((o) => normalizeGhanaPhoneNumber(o.phoneNumber)))
+                );
+                const res = await client.verifyNumbers(unverifiedPhones);
+                const validNorms = new Set(res.validNumbers.map((n) => normalizeGhanaPhoneNumber(n)));
+                for (const phone of unverifiedPhones) {
+                  if (validNorms.has(phone)) {
+                    await addAcceptedMtnNumber(phone, "CLICKYFIED_API", "Automated Verification API").catch(() => {});
+                    acceptedSet.add(phone);
+                  }
+                }
+                // Recompute remaining unverified
+                unverified = mtnOrders.filter(
+                  (o) => !acceptedSet.has(normalizeGhanaPhoneNumber(o.phoneNumber))
+                );
+              } catch (err) {
+                console.error("Clickyfied verification check in /api/orders error:", err);
+              }
+            }
+          }
+
+          if (unverified.length > 0) {
+            // Record unverified numbers in BlockedMtnNumber registry for admin review & verification
+            const unverifiedItems = unverified.map((o) => ({ number: o.phoneNumber, userId: user.id }));
+            await recordUnverifiedMtnNumbersBatch(unverifiedItems).catch((err) => {
+              console.error("Failed to record unverified MTN numbers during order submission:", err);
+            });
+
+            const sample = unverified.slice(0, 5).map((o) => o.phoneNumber).join(", ");
+            const more = unverified.length > 5 ? ` and ${unverified.length - 5} more` : "";
+            return apiError(
+              400,
+              `Cannot place order: ${unverified.length} MTN number(s) have not been verified yet (${sample}${more}). Please submit for verification or remove them.`
+            );
+          }
+        } else {
+          // Verification toggle is OFF: allow orders, but log unverified numbers in bulk
+          const unverifiedItems = mtnOrders
+            .filter((o) => !acceptedSet.has(normalizeGhanaPhoneNumber(o.phoneNumber)))
+            .map((o) => ({ number: o.phoneNumber, userId: user.id }));
+          if (unverifiedItems.length > 0) {
+            await recordUnverifiedMtnNumbersBatch(unverifiedItems);
+          }
         }
       }
     }

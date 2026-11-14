@@ -77,6 +77,7 @@ export async function getProviderRoutingConfig(): Promise<ProviderRoutingConfig>
       apiKey: getVal("ackmorre_api_key", ""),
       baseUrl: getVal("ackmorre_base_url", DEFAULT_ACKMORRE_BASE_URL),
       webhookSecret: getVal("ackmorre_webhook_secret", ""),
+      mtnVerificationEnabled: getVal("ackmorre_mtn_verification_enabled", "false") === "true",
     },
   };
 }
@@ -563,6 +564,46 @@ export async function dispatchOrder(
     const client = new AckmorreClient(config.ackmorre);
     const ackmorreStartTime = Date.now();
     let submitPayload: any = null;
+
+    // Enforce Ackmorre MTN number verification before sending MTN orders to Ackmorre
+    if (order.network.toUpperCase() === "MTN" && config.ackmorre.mtnVerificationEnabled) {
+      const canonicalPhone = normalizeGhanaPhoneNumber(order.phoneNumber);
+      const { verifyMtnNumbersWithAckmorre, recordUnverifiedMtnNumber } = await import("../mtn-verification");
+      const { verifiedSet, rateLimited } = await verifyMtnNumbersWithAckmorre(
+        [canonicalPhone],
+        config.ackmorre
+      );
+      if (!verifiedSet.has(canonicalPhone)) {
+        await recordUnverifiedMtnNumber({
+          number: canonicalPhone,
+          userId: order.userId ?? null,
+        }).catch(() => {});
+
+        const reason = rateLimited
+          ? "Ackmorre number verification rate limit reached. Order was not dispatched to Ackmorre."
+          : "MTN number is not verified on Ackmorre. Order was not dispatched to Ackmorre.";
+
+        await recordOrderApiLog({
+          orderId: order.id,
+          provider: "ACKMORRE",
+          action: "VERIFY_NUMBER",
+          endpoint: `${config.ackmorre.baseUrl || DEFAULT_ACKMORRE_BASE_URL}/number-check`,
+          method: "GET",
+          requestPayload: { network: "mtn", phone: canonicalPhone },
+          responsePayload: { verified: false, rateLimited },
+          statusCode: rateLimited ? 429 : 200,
+          success: false,
+          errorMessage: reason,
+          durationMs: Date.now() - ackmorreStartTime,
+        }).catch(() => {});
+
+        return {
+          success: false,
+          provider: "ACKMORRE",
+          error: reason,
+        };
+      }
+    }
 
     try {
       // Find matching bundle ID for this order

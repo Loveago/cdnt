@@ -993,6 +993,46 @@ export function ProviderApisSettings({ settings, setSettings, onSave, saving }: 
           </div>
         </div>
 
+        {/* MTN Number Verification via Ackmorre Endpoint */}
+        <div className="flex items-center justify-between p-3.5 rounded-xl bg-slate-50 dark:bg-slate-800/40">
+          <div className="space-y-0.5 pr-4">
+            <div className="text-xs font-semibold text-slate-900 dark:text-white flex items-center gap-1.5">
+              <ShieldCheck className="h-4 w-4 text-brand-600" />
+              MTN Number Verification via Ackmorre Endpoint
+            </div>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400">
+              When enabled for MTN orders routed to Ackmorre, numbers are checked against Ackmorre&apos;s
+              <code className="mx-1 px-1 bg-slate-200 dark:bg-slate-700 rounded">GET /api/v2/number-check</code>
+              endpoint. Only numbers tagged as verified by Ackmorre are allowed and cached in our database.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={settings.ackmorre_mtn_verification_enabled === "true"}
+            onClick={() =>
+              setSettings((s) => ({
+                ...s,
+                ackmorre_mtn_verification_enabled:
+                  s.ackmorre_mtn_verification_enabled === "true" ? "false" : "true",
+              }))
+            }
+            className={`relative h-6 w-11 shrink-0 rounded-full transition-colors ${
+              settings.ackmorre_mtn_verification_enabled === "true"
+                ? "bg-brand-600"
+                : "bg-slate-300 dark:bg-slate-700"
+            }`}
+          >
+            <span
+              className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-all ${
+                settings.ackmorre_mtn_verification_enabled === "true"
+                  ? "left-[22px]"
+                  : "left-0.5"
+              }`}
+            />
+          </button>
+        </div>
+
         {/* Dedicated Ackmorre Background Status Poller (MTN & Telecel) */}
         <div className="pt-4 border-t border-slate-100 dark:border-slate-800 p-3.5 rounded-xl bg-slate-50/80 dark:bg-slate-800/40 space-y-3">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">

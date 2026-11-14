@@ -761,19 +761,22 @@ model SignupCodeUsage {
 // ---------------------------------------------------------------------------
 
 model AcceptedMtnNumber {
-  id               String                @id @default(cuid())
-  number           String
-  normalizedNumber String                @unique
-  source           String                @default("MANUAL") // MANUAL | IMPORT_TXT | IMPORT_CSV | BATCH_VERIFICATION
-  batchId          String?
-  batch            MtnVerificationBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
-  verifiedAt       DateTime              @default(now())
-  verifiedBy       String?
-  createdAt        DateTime              @default(now())
-  updatedAt        DateTime              @updatedAt
+  id                 String                @id @default(cuid())
+  number             String
+  normalizedNumber   String                @unique
+  source             String                @default("MANUAL") // MANUAL | IMPORT_TXT | IMPORT_CSV | BATCH_VERIFICATION | CLICKYFIED_API | ACKMORRE_API
+  ackmorreVerified   Boolean               @default(false)
+  ackmorreVerifiedAt DateTime?
+  batchId            String?
+  batch              MtnVerificationBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  verifiedAt         DateTime              @default(now())
+  verifiedBy         String?
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
 
   @@index([normalizedNumber])
   @@index([source])
+  @@index([ackmorreVerified])
   @@index([createdAt])
   @@index([batchId])
 }
