@@ -231,11 +231,11 @@ export async function POST(request: NextRequest) {
           const sample = unverified.slice(0, 5).map((o) => o.phoneNumber).join(", ");
           const more = unverified.length > 5 ? ` and ${unverified.length - 5} more` : "";
           const rateMsg = rateLimited
-            ? " (Ackmorre verification rate limit reached; please try again shortly.)"
+            ? " (Verification rate limit reached; please try again shortly.)"
             : "";
           return apiError(
             400,
-            `Cannot place order: ${unverified.length} MTN number(s) are not verified on Ackmorre (${sample}${more}).${rateMsg}`
+            `Cannot place order: ${unverified.length} MTN number(s) not verified (${sample}${more}).${rateMsg}`
           );
         }
       } else {

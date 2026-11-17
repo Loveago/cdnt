@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
-import { deliveryReportCode, sanitizeCustomerRefundNote, sanitizeCustomerFacingText } from "@/lib/types";
+import { deliveryReportCode, sanitizeCustomerRefundNote, sanitizeCustomerFacingText, isInternalProviderActor } from "@/lib/types";
 import { handleRouteError, apiError } from "@/lib/api-helpers";
 
 import { syncClickyfiedDeliveryReport } from "@/lib/provider-apis/router";
@@ -70,7 +70,7 @@ export async function GET(
 
     const sanitizeActor = (label: string | null | undefined) => {
       if (!label) return null;
-      if (label.toLowerCase().includes("clickyfied") || label.toLowerCase().includes("bigwin")) {
+      if (isInternalProviderActor(label)) {
         return "Support Team";
       }
       return sanitizeCustomerFacingText(label) || "Support Team";
@@ -91,7 +91,7 @@ export async function GET(
           message: isStaff ? e.message : sanitizeCustomerFacingText(e.message),
           actorLabel: isStaff
             ? e.actorLabel
-            : e.actorLabel?.toLowerCase().includes("clickyfied")
+            : isInternalProviderActor(e.actorLabel)
             ? "System"
             : (sanitizeCustomerFacingText(e.actorLabel) || "System"),
         })),

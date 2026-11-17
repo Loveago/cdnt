@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireApiKey, ApiKeyError, logApiRequest } from "@/lib/api-auth";
 import { handleRouteError } from "@/lib/api-helpers";
+import { sanitizeCustomerFacingText, sanitizeCustomerRefundNote } from "@/lib/types";
 
 export async function GET(
   request: NextRequest,
@@ -19,7 +20,7 @@ export async function GET(
       where: { id: orderId, userId },
       select: {
         id: true, phoneNumber: true, network: true, gbAmount: true, amount: true,
-        status: true, failureReason: true, providerReference: true, createdAt: true, updatedAt: true,
+        status: true, failureReason: true, createdAt: true, updatedAt: true,
         history: { orderBy: { createdAt: "asc" }, select: { status: true, note: true, createdAt: true } },
       },
     });
@@ -33,7 +34,17 @@ export async function GET(
     if (!order) {
       return NextResponse.json({ success: false, error: "Order not found" }, { status: 404 });
     }
-    return NextResponse.json({ success: true, order });
+    return NextResponse.json({
+      success: true,
+      order: {
+        ...order,
+        failureReason: sanitizeCustomerRefundNote(order.failureReason, order.amount),
+        history: order.history.map((h) => ({
+          ...h,
+          note: sanitizeCustomerFacingText(h.note),
+        })),
+      },
+    });
   } catch (err) {
     if (err instanceof ApiKeyError) {
       return NextResponse.json({ success: false, error: err.message }, { status: err.status });

@@ -319,9 +319,18 @@ export function sanitizeCustomerRefundNote(
 }
 
 /**
+ * Returns true if an actor/author label references an internal API provider
+ * so user-facing responses can replace it with a generic label ("System" / "Support Team").
+ */
+export function isInternalProviderActor(label: string | null | undefined): boolean {
+  if (!label) return false;
+  return /clickyfied|clickify|ackmorre|bigwindata|bigwin|ghconnect/i.test(label);
+}
+
+/**
  * Sanitizes any text intended for user/customer display (status notes, history logs,
  * timeline events, error reasons, dialog labels) to strip all internal API provider
- * names (Clickyfied, Clickify, Bigwindata, Bigwin) and internal IDs.
+ * names (Clickyfied, Clickify, Ackmorre, Bigwindata, Bigwin, Ghconnect) and internal IDs.
  */
 export function sanitizeCustomerFacingText(text: string | null | undefined): string | null {
   if (!text) return null;
@@ -331,8 +340,7 @@ export function sanitizeCustomerFacingText(text: string | null | undefined): str
   // Mask internal batch codes / provider report IDs in notes
   s = s.replace(/\[PROVIDER_REPORT_ID:[^\]]+\]/gi, "");
   s = s.replace(/\[?CLICKYFIED_REPORT_ID:[^\]]+\]?/gi, "");
-  s = s.replace(/CLICKYFIED:[a-z0-9_-]+(?::[a-z0-9_-]+)?/gi, "");
-  s = s.replace(/ACKMORRE:[a-z0-9_-]+(?::[a-z0-9_-]+)?/gi, "");
+  s = s.replace(/(?:CLICKYFIED|ACKMORRE|BIGWINDATA|BIGWIN|GHCONNECT):[a-z0-9_-]+(?::[a-z0-9_-]+)?/gi, "");
 
   // Convert common provider failure/status phrases into clean customer language
   s = s.replace(/order marked as failed by [a-z0-9_-]+(?:\s*provider)?/gi, "Order delivery failed");
@@ -354,23 +362,12 @@ export function sanitizeCustomerFacingText(text: string | null | undefined): str
 
   // Strip provider names explicitly
   s = s
-    .replace(/on clickyfied/gi, "")
-    .replace(/by clickyfied callback/gi, "")
-    .replace(/by clickyfied provider/gi, "")
-    .replace(/clickyfied callback/gi, "System Sync")
-    .replace(/clickyfied api/gi, "System")
-    .replace(/clickyfied provider/gi, "network provider")
-    .replace(/clickyfied/gi, "")
-    .replace(/clickify/gi, "")
-    .replace(/on ackmorre/gi, "")
-    .replace(/by ackmorre callback/gi, "")
-    .replace(/by ackmorre provider/gi, "")
-    .replace(/ackmorre callback/gi, "System Sync")
-    .replace(/ackmorre api/gi, "System")
-    .replace(/ackmorre provider/gi, "network provider")
-    .replace(/ackmorre/gi, "")
-    .replace(/bigwindata/gi, "")
-    .replace(/bigwin/gi, "");
+    .replace(/(?:on|by)\s+(?:clickyfied|clickify|ackmorre|bigwindata|bigwin|ghconnect)\s+(?:callback|provider|api)/gi, "")
+    .replace(/(?:on|by)\s+(?:clickyfied|clickify|ackmorre|bigwindata|bigwin|ghconnect)/gi, "")
+    .replace(/(?:clickyfied|clickify|ackmorre|bigwindata|bigwin|ghconnect)\s+callback/gi, "System Sync")
+    .replace(/(?:clickyfied|clickify|ackmorre|bigwindata|bigwin|ghconnect)\s+api/gi, "System")
+    .replace(/(?:clickyfied|clickify|ackmorre|bigwindata|bigwin|ghconnect)\s+provider/gi, "network provider")
+    .replace(/clickyfied|clickify|ackmorre|bigwindata|bigwin|ghconnect/gi, "");
 
   // Clean up any double spaces, trailing colons or dashes
   s = s

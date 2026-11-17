@@ -284,8 +284,8 @@ export async function validateMtnOrderRecipient(
     }
 
     const reason = rateLimited
-      ? "Ackmorre number verification rate limit reached. Please try again in a moment."
-      : "This MTN number is not verified on Ackmorre. Orders to unverified numbers are not permitted while Ackmorre verification is active.";
+      ? "Number verification rate limit reached. Please try again in a moment."
+      : "Number not verified. Orders to unverified MTN numbers are not permitted.";
     if (opts.throwOnFailure) {
       throw new MtnNumberNotVerifiedError(reason);
     }

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { requireUser } from "@/lib/auth";
 import { changeOrderStatus, deriveCompletedAt } from "@/lib/orders";
-import { reportWindowEnd, isWithinReportWindow, ACTIVE_DELIVERY_REPORT_STATUSES, sanitizeCustomerRefundNote, sanitizeCustomerFacingText } from "@/lib/types";
+import { reportWindowEnd, isWithinReportWindow, ACTIVE_DELIVERY_REPORT_STATUSES, sanitizeCustomerRefundNote, sanitizeCustomerFacingText, isInternalProviderActor } from "@/lib/types";
 import { recordAudit } from "@/lib/audit";
 import { handleRouteError, apiError } from "@/lib/api-helpers";
 
@@ -100,7 +100,7 @@ export async function GET(
       : (safeOrder.history || []).map((h) => ({
           ...h,
           note: sanitizeCustomerFacingText(h.note),
-          changedBy: h.changedBy?.toLowerCase().includes("clickyfied")
+          changedBy: isInternalProviderActor(h.changedBy)
             ? "System"
             : (sanitizeCustomerFacingText(h.changedBy) || "System"),
         }));

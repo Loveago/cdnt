@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { handleRouteError, apiError } from "@/lib/api-helpers";
 import { getEnabledStorefrontBySlug, fromPesewas } from "@/lib/storefront";
-import { deliveryReportCode, sanitizeCustomerRefundNote, sanitizeCustomerFacingText } from "@/lib/types";
+import { deliveryReportCode, sanitizeCustomerRefundNote, sanitizeCustomerFacingText, isInternalProviderActor } from "@/lib/types";
 import { syncClickyfiedDeliveryReport } from "@/lib/provider-apis/router";
 
 /**
@@ -101,7 +101,7 @@ export async function GET(
           id: e.id,
           type: e.type,
           message: sanitizeCustomerFacingText(e.message),
-          actorLabel: e.actorLabel?.toLowerCase().includes("clickyfied")
+          actorLabel: isInternalProviderActor(e.actorLabel)
             ? "System"
             : (sanitizeCustomerFacingText(e.actorLabel) || "System"),
           createdAt: e.createdAt.toISOString(),

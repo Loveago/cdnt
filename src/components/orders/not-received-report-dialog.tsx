@@ -5,7 +5,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/shared";
 import { StatusBadge, DeliveryReportStatusBadge } from "@/components/status-badge";
-import { formatGHS, formatDateTime, sanitizeCustomerRefundNote } from "@/lib/types";
+import { formatGHS, formatDateTime, sanitizeCustomerRefundNote, isInternalProviderActor } from "@/lib/types";
 import { orderCode } from "@/lib/utils";
 import { ShieldCheck, Image as ImageIcon } from "lucide-react";
 
@@ -219,7 +219,7 @@ function AdminResponseSection({ report }: { report: NotReceivedReportDetail }) {
       {report.respondedAt && (
         <p className="mt-1 text-[11px] text-teal-600/70 dark:text-teal-400/70">
           {formatDateTime(report.respondedAt)}
-          {report.respondedBy ? ` · by ${report.respondedBy.toLowerCase().includes("clickyfied") || report.respondedBy.toLowerCase().includes("bigwin") ? "Support Team" : report.respondedBy}` : ""}
+          {report.respondedBy ? ` · by ${isInternalProviderActor(report.respondedBy) ? "Support Team" : report.respondedBy}` : ""}
         </p>
       )}
     </section>
