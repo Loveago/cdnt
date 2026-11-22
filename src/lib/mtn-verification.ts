@@ -148,10 +148,108 @@ export async function isAckmorreMtnVerificationActive(packageNameOrType?: string
   return { active: true, ackmorreConfig: config.ackmorre };
 }
 
+const ACKMORRE_RATE_STATE_KEY = "ackmorre_number_check_rate_state";
+const ACKMORRE_NEG_CACHE_PREFIX = "ackmorre_unverified:";
+const ACKMORRE_WINDOW_MS = 60_000;
+const ACKMORRE_MAX_REQUESTS_PER_WINDOW = 24; // Safely below Ackmorre's 30 req/min limit
+const ACKMORRE_NEG_CACHE_TTL_MS = 15 * 60 * 1000; // 15 minutes
+const ACKMORRE_COOLDOWN_ON_429_MS = 60_000;
+const ACKMORRE_COOLDOWN_ON_403_MS = 5 * 60 * 1000;
+
+interface AckmorreRateState {
+  windowStart: number;
+  count: number;
+  blockedUntil: number | null;
+}
+
+/**
+ * Atomically reserves 1 Ackmorre /number-check slot across all PM2 cluster workers
+ * using a PostgreSQL row lock on SystemSetting.
+ */
+async function tryAcquireAckmorreNumberCheckSlot(): Promise<{ allowed: boolean }> {
+  const now = Date.now();
+  await prisma.$executeRaw`
+    INSERT INTO "SystemSetting" ("key", "value", "updatedAt")
+    VALUES (${ACKMORRE_RATE_STATE_KEY}, ${JSON.stringify({ windowStart: now, count: 0, blockedUntil: null })}, NOW())
+    ON CONFLICT ("key") DO NOTHING
+  `;
+
+  return prisma.$transaction(async (tx) => {
+    const rows = await tx.$queryRaw<Array<{ value: string }>>`
+      SELECT "value" FROM "SystemSetting" WHERE "key" = ${ACKMORRE_RATE_STATE_KEY} FOR UPDATE
+    `;
+    let state: AckmorreRateState = { windowStart: now, count: 0, blockedUntil: null };
+    if (rows[0]?.value) {
+      try {
+        const parsed = JSON.parse(rows[0].value);
+        state = {
+          windowStart: Number(parsed.windowStart) || 0,
+          count: Number(parsed.count) || 0,
+          blockedUntil: parsed.blockedUntil ? Number(parsed.blockedUntil) : null,
+        };
+      } catch {
+        // Reset corrupted state
+      }
+    }
+
+    if (state.blockedUntil && now < state.blockedUntil) {
+      return { allowed: false };
+    }
+
+    if (now - state.windowStart >= ACKMORRE_WINDOW_MS) {
+      state.windowStart = now;
+      state.count = 0;
+      state.blockedUntil = null;
+    }
+
+    if (state.count >= ACKMORRE_MAX_REQUESTS_PER_WINDOW) {
+      return { allowed: false };
+    }
+
+    state.count += 1;
+    await tx.systemSetting.update({
+      where: { key: ACKMORRE_RATE_STATE_KEY },
+      data: { value: JSON.stringify(state) },
+    });
+    return { allowed: true };
+  });
+}
+
+async function tripAckmorreNumberCheckCooldown(cooldownMs: number): Promise<void> {
+  const now = Date.now();
+  const blockedUntil = now + cooldownMs;
+  try {
+    await prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<Array<{ value: string }>>`
+        SELECT "value" FROM "SystemSetting" WHERE "key" = ${ACKMORRE_RATE_STATE_KEY} FOR UPDATE
+      `;
+      let state: AckmorreRateState = { windowStart: now, count: ACKMORRE_MAX_REQUESTS_PER_WINDOW, blockedUntil };
+      if (rows[0]?.value) {
+        try {
+          const parsed = JSON.parse(rows[0].value);
+          state = {
+            windowStart: Number(parsed.windowStart) || now,
+            count: Number(parsed.count) || ACKMORRE_MAX_REQUESTS_PER_WINDOW,
+            blockedUntil: Math.max(Number(parsed.blockedUntil) || 0, blockedUntil),
+          };
+        } catch {}
+      }
+      await tx.systemSetting.upsert({
+        where: { key: ACKMORRE_RATE_STATE_KEY },
+        create: { key: ACKMORRE_RATE_STATE_KEY, value: JSON.stringify(state) },
+        update: { value: JSON.stringify(state) },
+      });
+    });
+  } catch (err) {
+    console.error("Failed to set Ackmorre number-check cooldown:", err);
+  }
+}
+
 /**
  * Verifies a list of MTN numbers using our DB tag (ackmorreVerified=true) first,
- * then Ackmorre's GET /number-check endpoint for any remaining unverified numbers.
- * Respects Ackmorre's 30 req/min rate limit by capping per-call checks and stopping on 429/403.
+ * then checks our 15-minute negative cache for recently unverified numbers,
+ * then calls Ackmorre's GET /number-check endpoint within a shared DB-backed
+ * 24 req/min global rate limit across all workers, stopping immediately on 429/403.
  */
 export async function verifyMtnNumbersWithAckmorre(
   numbers: string[],
@@ -181,7 +279,28 @@ export async function verifyMtnNumbersWithAckmorre(
     verifiedSet.add(row.normalizedNumber);
   }
 
-  const toCheck = canonicalList.filter((n) => !verifiedSet.has(n));
+  const remainingAfterPositive = canonicalList.filter((n) => !verifiedSet.has(n));
+  if (remainingAfterPositive.length === 0) {
+    return { verifiedSet, unverifiedSet, rateLimited: false };
+  }
+
+  // 2. Check negative cache for recently unverified numbers (15 min TTL)
+  const now = Date.now();
+  const negRows = await prisma.systemSetting.findMany({
+    where: {
+      key: { in: remainingAfterPositive.map((p) => `${ACKMORRE_NEG_CACHE_PREFIX}${p}`) },
+    },
+    select: { key: true, value: true },
+  });
+  for (const row of negRows) {
+    const checkedAt = Number(row.value);
+    if (Number.isFinite(checkedAt) && now - checkedAt < ACKMORRE_NEG_CACHE_TTL_MS) {
+      const phone = row.key.slice(ACKMORRE_NEG_CACHE_PREFIX.length);
+      unverifiedSet.add(phone);
+    }
+  }
+
+  const toCheck = remainingAfterPositive.filter((n) => !unverifiedSet.has(n));
   if (toCheck.length === 0) {
     return { verifiedSet, unverifiedSet, rateLimited: false };
   }
@@ -192,11 +311,16 @@ export async function verifyMtnNumbersWithAckmorre(
   const client = new AckmorreClient(cfg);
 
   let rateLimited = false;
-  // Cap per-call external checks to stay safely under Ackmorre's 30 req/min limit
-  const maxExternalChecks = 25;
   for (let i = 0; i < toCheck.length; i++) {
     const phone = toCheck[i];
-    if (rateLimited || i >= maxExternalChecks) {
+    if (rateLimited) {
+      unverifiedSet.add(phone);
+      continue;
+    }
+
+    const slot = await tryAcquireAckmorreNumberCheckSlot().catch(() => ({ allowed: false }));
+    if (!slot.allowed) {
+      rateLimited = true;
       unverifiedSet.add(phone);
       continue;
     }
@@ -207,13 +331,34 @@ export async function verifyMtnNumbersWithAckmorre(
         await markAcceptedMtnNumberAckmorreVerified(phone).catch((err) => {
           console.error("Failed to mark number as Ackmorre verified:", err);
         });
+        await prisma.systemSetting
+          .deleteMany({ where: { key: `${ACKMORRE_NEG_CACHE_PREFIX}${phone}` } })
+          .catch(() => {});
         verifiedSet.add(phone);
       } else {
+        await prisma.systemSetting
+          .upsert({
+            where: { key: `${ACKMORRE_NEG_CACHE_PREFIX}${phone}` },
+            create: { key: `${ACKMORRE_NEG_CACHE_PREFIX}${phone}`, value: String(Date.now()) },
+            update: { value: String(Date.now()) },
+          })
+          .catch(() => {});
         unverifiedSet.add(phone);
       }
     } catch (err: any) {
-      if (err?.status === 429 || err?.code === "RATE_LIMITED") {
+      const status = err?.status;
+      const code = err?.code;
+      const msg = String(err?.message || "");
+      if (
+        status === 429 ||
+        code === "RATE_LIMITED" ||
+        msg.toLowerCase().includes("too many requests")
+      ) {
         rateLimited = true;
+        await tripAckmorreNumberCheckCooldown(ACKMORRE_COOLDOWN_ON_429_MS);
+      } else if (status === 403 || code === "NUMBER_CHECK_BLOCKED") {
+        rateLimited = true;
+        await tripAckmorreNumberCheckCooldown(ACKMORRE_COOLDOWN_ON_403_MS);
       }
       console.error(`Ackmorre number-check error for ${phone}:`, err?.message || err);
       unverifiedSet.add(phone);

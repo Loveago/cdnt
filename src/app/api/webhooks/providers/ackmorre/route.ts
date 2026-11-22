@@ -139,12 +139,9 @@ export async function POST(request: NextRequest) {
       if (rawStatus === "delivered") {
         targetStatus = "SUCCESS";
         statusNote = "Delivered successfully";
-      } else if (rawStatus === "failed") {
+      } else if (rawStatus === "failed" || rawStatus === "refunded") {
         targetStatus = "FAILED";
         statusNote = failureReason ? `Delivery failed: ${failureReason}` : "Delivery failed";
-      } else if (rawStatus === "refunded") {
-        targetStatus = "REFUNDED";
-        statusNote = "Order refunded by provider";
       } else if (rawStatus === "placed" || rawStatus === "processing" || rawStatus === "accepted") {
         targetStatus = "PROCESSING";
         statusNote = `Provider processing (${rawStatus})`;

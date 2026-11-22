@@ -443,10 +443,11 @@ export async function changeOrderStatus(
   // refund/failure. No-op for ordinary orders.
   await syncCommissionForOrder(orderId, target);
 
-  // If order is REFUNDED, FAILED, or CANCELLED:
+  // If order is REFUNDED or CANCELLED:
   // Ordinary orders (WEB / API): refund to user's wallet balance if not already refunded.
   // Storefront orders: DO NOT credit the agent's wallet — customer is refunded via Paystack/manual.
-  if (target === "REFUNDED" || target === "FAILED" || target === "CANCELLED") {
+  // Note: FAILED orders are NOT automatically refunded — admin manually transitions FAILED -> REFUNDED to issue a refund.
+  if (target === "REFUNDED" || target === "CANCELLED") {
     if (order.source !== "STOREFRONT" && order.userId) {
       const existingRefund = await prisma.walletTransaction.findFirst({
         where: {
@@ -468,7 +469,7 @@ export async function changeOrderStatus(
               amount: order.amount,
               status: "APPROVED",
               reference: `REF-ORDER-${order.id}`,
-              note: `Refund for ${target === "FAILED" ? "Failed" : target === "CANCELLED" ? "Cancelled" : "Refunded"} Order #${order.id} (${order.phoneNumber})`,
+              note: `Refund for ${target === "CANCELLED" ? "Cancelled" : "Refunded"} Order #${order.id} (${order.phoneNumber})`,
             },
           }),
         ]);
@@ -650,7 +651,7 @@ export async function getOrderStats(where: Record<string, unknown>) {
 /**
  * Automatically reconcile user wallet ledger records.
  * Ensures any order placed by the user (non-storefront) has a corresponding DEBIT ledger entry,
- * and any FAILED, CANCELLED, or REFUNDED order has a corresponding REFUND ledger entry.
+ * and any CANCELLED or REFUNDED order has a corresponding REFUND ledger entry.
  */
 export async function reconcileUserWalletLedger(userId: string) {
   try {
@@ -720,7 +721,7 @@ export async function reconcileUserWalletLedger(userId: string) {
         existingRefs.add(orderRef);
       }
 
-      if (["FAILED", "CANCELLED", "REFUNDED"].includes(o.status)) {
+      if (["CANCELLED", "REFUNDED"].includes(o.status)) {
         const refundRef = `REF-ORDER-${o.id}`;
         if (!existingRefs.has(refundRef)) {
           toCreate.push({
@@ -729,7 +730,7 @@ export async function reconcileUserWalletLedger(userId: string) {
             amount: o.amount,
             status: "APPROVED",
             reference: refundRef,
-            note: `Refund for ${o.status === "FAILED" ? "Failed" : o.status === "CANCELLED" ? "Cancelled" : "Refunded"} Order #${o.id} (${o.phoneNumber})`,
+            note: `Refund for ${o.status === "CANCELLED" ? "Cancelled" : "Refunded"} Order #${o.id} (${o.phoneNumber})`,
             createdAt: o.updatedAt || o.createdAt,
           });
           existingRefs.add(refundRef);
