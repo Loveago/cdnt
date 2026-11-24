@@ -459,8 +459,8 @@ export async function POST(request: NextRequest) {
             },
           });
 
-          // If failed/refunded on Clickyfied, update ONLY this specific reported order to FAILED
-          if (newStatus === "REFUNDED" && targetOrder) {
+          // If failed/refunded on Clickyfied, update ONLY this specific reported order to FAILED (unless already REFUNDED/CANCELLED)
+          if (newStatus === "REFUNDED" && targetOrder && !["REFUNDED", "CANCELLED"].includes(targetOrder.status)) {
             try {
               const refundReason =
                 sanitizeCustomerRefundNote(adminNotes, targetOrder.amount) ||
@@ -661,7 +661,11 @@ export async function POST(request: NextRequest) {
           }
         }
 
-        if (targetStatus && targetStatus !== ord.status) {
+        if (
+          targetStatus &&
+          targetStatus !== ord.status &&
+          !["REFUNDED", "CANCELLED", "SUCCESS"].includes(ord.status)
+        ) {
           await changeOrderStatus(
             ord.id,
             targetStatus,

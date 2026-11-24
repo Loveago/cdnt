@@ -147,7 +147,11 @@ export async function POST(request: NextRequest) {
         statusNote = `Provider processing (${rawStatus})`;
       }
 
-      if (targetStatus && targetStatus !== order.status) {
+      if (
+        targetStatus &&
+        targetStatus !== order.status &&
+        !["REFUNDED", "CANCELLED", "SUCCESS"].includes(order.status)
+      ) {
         if (targetStatus === "FAILED" && failureReason) {
           await prisma.order.update({
             where: { id: order.id },
